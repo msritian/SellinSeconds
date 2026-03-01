@@ -18,6 +18,7 @@ export default function ChatPage() {
   const [sending, setSending] = useState(false);
   const [product, setProduct] = useState<{ product_id: string; price: number; item_name: string } | null>(null);
   const [myRole, setMyRole] = useState<string | null>(null);
+  const [participants, setParticipants] = useState<{ user_id: string; role: string; name: string }[]>([]);
   const [finalizeState, setFinalizeState] = useState<{
     buyer_confirmed: boolean;
     seller_confirmed: boolean;
@@ -68,6 +69,7 @@ export default function ChatPage() {
           if (d.product) setProduct(d.product);
           if (d.my_role) setMyRole(d.my_role);
           if (d.finalize_state) setFinalizeState(d.finalize_state);
+          if (Array.isArray(d.participants)) setParticipants(d.participants);
         }),
       apiFetch(`/chat/${chatId}/messages`, { token: session.access_token })
         .then((r) => r.json())
@@ -190,19 +192,23 @@ export default function ChatPage() {
         )}
 
         <div className="max-h-96 space-y-2 overflow-y-auto p-4">
-          {messages.map((m) => (
-            <div
-              key={m.id}
-              className={`rounded-lg px-3 py-2 ${
-                m.sender_id === user.id ? "ml-8 bg-amber-100" : "mr-8 bg-stone-100"
-              }`}
-            >
-              <p className="whitespace-pre-wrap text-sm">{m.content}</p>
-              <p className="mt-1 text-xs text-stone-500">
-                {new Date(m.sent_at).toLocaleString()}
-              </p>
-            </div>
-          ))}
+          {messages.map((m) => {
+            const senderName = participants.find((p) => p.user_id === m.sender_id)?.name ?? "Unknown";
+            return (
+              <div
+                key={m.id}
+                className={`rounded-lg px-3 py-2 ${
+                  m.sender_id === user.id ? "ml-8 bg-amber-100" : "mr-8 bg-stone-100"
+                }`}
+              >
+                <p className="text-xs font-medium text-stone-600">{senderName}</p>
+                <p className="whitespace-pre-wrap text-sm">{m.content}</p>
+                <p className="mt-1 text-xs text-stone-500">
+                  {new Date(m.sent_at).toLocaleString()}
+                </p>
+              </div>
+            );
+          })}
           <div ref={bottomRef} />
         </div>
 

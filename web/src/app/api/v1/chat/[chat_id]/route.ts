@@ -45,11 +45,28 @@ export async function GET(
     };
   }
 
+  const { data: partsAll } = await supabase
+    .from("chat_participants")
+    .select("user_id, role")
+    .eq("chat_id", chat_id);
+  const participantIds = (partsAll ?? []).map((p) => p.user_id);
+  let userNames: Record<string, string> = {};
+  if (participantIds.length > 0) {
+    const { data: users } = await supabase.from("users").select("id, name").in("id", participantIds);
+    userNames = Object.fromEntries((users ?? []).map((u) => [u.id, u.name]));
+  }
+  const participants = (partsAll ?? []).map((p) => ({
+    user_id: p.user_id,
+    role: p.role,
+    name: userNames[p.user_id] ?? "?",
+  }));
+
   return NextResponse.json({
     chat_id: chat.id,
     product_id: chat.product_id,
     my_role: participant.role,
     product: product ? { product_id: product.id, item_name: product.item_name, price: Number(product.price) } : null,
     finalize_state,
+    participants,
   });
 }

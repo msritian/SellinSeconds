@@ -158,8 +158,16 @@ def initiate_chat(
         for c in (existing_chats.data or []):
             parts = supabase.table("chat_participants").select("user_id").eq("chat_id", c["id"]).execute()
             user_ids = {p["user_id"] for p in (parts.data or [])}
-            if user_ids == {body.buyer_id, body.seller_id}:
-                return {"chat_id": c["id"], "participants": [body.buyer_id, body.seller_id]}
+            if body.buyer_id in user_ids and body.seller_id in user_ids:
+                chat_id = c["id"]
+                pending = supabase.table("product_accepted_helpers").select("helper_id").eq("product_id", body.product_id).eq("buyer_id", body.buyer_id).execute()
+                for row in (pending.data or []):
+                    hp = supabase.table("helper_profiles").select("user_id").eq("id", row["helper_id"]).limit(1).execute()
+                    if hp.data and len(hp.data) > 0:
+                        supabase.table("chat_participants").upsert({"chat_id": chat_id, "user_id": hp.data[0]["user_id"], "role": "helper"}, on_conflict="chat_id,user_id").execute()
+                supabase.table("product_accepted_helpers").delete().eq("product_id", body.product_id).eq("buyer_id", body.buyer_id).execute()
+                parts2 = supabase.table("chat_participants").select("user_id").eq("chat_id", chat_id).execute()
+                return {"chat_id": chat_id, "participants": [p["user_id"] for p in (parts2.data or [])]}
 
         ins = supabase.table("chats").insert({"product_id": body.product_id}).execute()
         if not ins.data:
@@ -171,6 +179,12 @@ def initiate_chat(
         ]).execute()
         if part_ins.data is None and getattr(part_ins, "errors", None):
             raise HTTPException(status_code=500, detail=f"Failed to add participants: {part_ins.errors}")
+        pending = supabase.table("product_accepted_helpers").select("helper_id").eq("product_id", body.product_id).eq("buyer_id", body.buyer_id).execute()
+        for row in (pending.data or []):
+            hp = supabase.table("helper_profiles").select("user_id").eq("id", row["helper_id"]).limit(1).execute()
+            if hp.data and len(hp.data) > 0:
+                supabase.table("chat_participants").upsert({"chat_id": chat_id, "user_id": hp.data[0]["user_id"], "role": "helper"}, on_conflict="chat_id,user_id").execute()
+        supabase.table("product_accepted_helpers").delete().eq("product_id", body.product_id).eq("buyer_id", body.buyer_id).execute()
         parts = supabase.table("chat_participants").select("user_id").eq("chat_id", chat_id).execute()
         return {"chat_id": chat_id, "participants": [p["user_id"] for p in (parts.data or [])]}
     except HTTPException:
@@ -205,12 +219,20 @@ def get_chat(
             "hold_triggered": bool(r.get("hold_triggered")),
             "status": "both_confirmed" if (r.get("buyer_confirmed") and r.get("seller_confirmed")) else "pending",
         }
+    parts_all = supabase.table("chat_participants").select("user_id, role").eq("chat_id", chat_id).execute()
+    participant_ids = [x["user_id"] for x in (parts_all.data or [])]
+    user_names = {}
+    if participant_ids:
+        users = supabase.table("users").select("id, name").in_("id", participant_ids).execute()
+        user_names = {u["id"]: u["name"] for u in (users.data or [])}
+    participants = [{"user_id": x["user_id"], "role": x["role"], "name": user_names.get(x["user_id"], "?")} for x in (parts_all.data or [])]
     return {
         "chat_id": chat.data["id"],
         "product_id": chat.data["product_id"],
         "my_role": part.data["role"],
         "product": {"product_id": p["id"], "item_name": p["item_name"], "price": float(p["price"])} if p else None,
         "finalize_state": finalize_state,
+        "participants": participants,
     }
 
 

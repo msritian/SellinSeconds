@@ -48,7 +48,7 @@ class HelperAcceptBody(BaseModel):
     buyer_id: str
     helper_id: str
     product_id: str
-    chat_id: str
+    chat_id: Optional[str] = None  # If omitted, helper is stored and added when buyer-seller chat is created
 
 
 class ChatInitiateBody(BaseModel):

@@ -18,7 +18,11 @@ def finalize_intent(body: FinalizeIntentBody, current_user: dict = Depends(get_c
             updates["buyer_confirmed"] = True
         if body.role == "seller":
             updates["seller_confirmed"] = True
-        if row.get("buyer_confirmed") and row.get("seller_confirmed"):
+        # After this request, both are confirmed if they were already or we just set them
+        both_confirmed = (row.get("buyer_confirmed") or updates.get("buyer_confirmed")) and (
+            row.get("seller_confirmed") or updates.get("seller_confirmed")
+        )
+        if both_confirmed:
             updates["hold_triggered"] = True
             supabase.table("payment_holds").insert({
                 "buyer_id": row["buyer_id"],
@@ -27,6 +31,7 @@ def finalize_intent(body: FinalizeIntentBody, current_user: dict = Depends(get_c
                 "amount": row["amount"],
                 "status": "held",
             }).execute()
+            supabase.table("products").update({"status": "sold"}).eq("id", body.product_id).execute()
         supabase.table("finalize_intents").update(updates).eq("id", row["id"]).execute()
         row = {**row, **updates}
     else:
@@ -59,6 +64,7 @@ def finalize_intent(body: FinalizeIntentBody, current_user: dict = Depends(get_c
                 "amount": body.amount,
                 "status": "held",
             }).execute()
+            supabase.table("products").update({"status": "sold"}).eq("id", body.product_id).execute()
     return {
         "finalize_intent_id": row["id"],
         "buyer_confirmed": row.get("buyer_confirmed", False),

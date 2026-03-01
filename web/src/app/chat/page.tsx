@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/app/providers";
 import { apiFetch } from "@/lib/api";
 
@@ -17,10 +17,12 @@ type ChatItem = {
 
 export default function ChatListPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { user, session, loading } = useAuth();
   const [chats, setChats] = useState<ChatItem[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [loadingChats, setLoadingChats] = useState(true);
+  const acceptHelperHandled = useRef(false);
 
   useEffect(() => {
     if (!session?.access_token) {
@@ -35,6 +37,42 @@ export default function ChatListPage() {
       .catch((err) => setLoadError(err?.message ?? "Failed to load chats"))
       .finally(() => setLoadingChats(false));
   }, [session?.access_token]);
+
+  useEffect(() => {
+    const acceptHelper = searchParams.get("accept_helper");
+    const helperId = searchParams.get("helper_id");
+    const productId = searchParams.get("product_id");
+    if (!user?.id || !session?.access_token || !acceptHelper || !helperId || !productId || acceptHelperHandled.current) return;
+    acceptHelperHandled.current = true;
+    (async () => {
+      try {
+        const productRes = await apiFetch(`/products/${productId}`, { token: session.access_token });
+        if (!productRes.ok) return;
+        const productData = await productRes.json();
+        const sellerId = productData.seller?.user_id;
+        if (!sellerId) return;
+        const initiateRes = await apiFetch("/chat/initiate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ product_id: productId, buyer_id: user.id, seller_id: sellerId }),
+          token: session.access_token,
+        });
+        if (!initiateRes.ok) return;
+        const { chat_id } = await initiateRes.json();
+        const acceptRes = await apiFetch("/helper/accept", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ chat_id, helper_id: helperId, product_id: productId, buyer_id: user.id }),
+          token: session.access_token,
+        });
+        if (acceptRes.ok && chat_id) {
+          router.replace(`/chat/${chat_id}`);
+        }
+      } catch {
+        // ignore
+      }
+    })();
+  }, [user?.id, session?.access_token, searchParams, router]);
 
   if (loading) {
     return (
