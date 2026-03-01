@@ -98,7 +98,10 @@ export function Nav() {
   return (
     <header className="border-b border-stone-200 bg-white px-4 py-3">
       <div className="mx-auto flex max-w-6xl items-center justify-between gap-4">
-        <Link href="/" className="shrink-0 font-semibold text-stone-800">
+        <Link
+          href={helperMode ? "/helper" : "/"}
+          className="shrink-0 font-semibold text-stone-800"
+        >
           SellinSeconds
         </Link>
         <div className="flex items-center gap-4">
@@ -115,18 +118,22 @@ export function Nav() {
                   </span>
                 )}
               </Link>
-              <Link
-                href="/list"
-                className="rounded-md px-3 py-1.5 text-sm font-medium text-stone-600 hover:bg-stone-100"
-              >
-                List an Item
-              </Link>
-              <Link
-                href="/seller/listings"
-                className="rounded-md px-3 py-1.5 text-sm font-medium text-stone-600 hover:bg-stone-100"
-              >
-                My listings
-              </Link>
+              {!helperMode && (
+                <>
+                  <Link
+                    href="/list"
+                    className="rounded-md px-3 py-1.5 text-sm font-medium text-stone-600 hover:bg-stone-100"
+                  >
+                    List an Item
+                  </Link>
+                  <Link
+                    href="/seller/listings"
+                    className="rounded-md px-3 py-1.5 text-sm font-medium text-stone-600 hover:bg-stone-100"
+                  >
+                    My listings
+                  </Link>
+                </>
+              )}
               <label className="flex items-center gap-2 text-sm">
                 <span className="text-stone-600">Helper Mode</span>
                 <input
