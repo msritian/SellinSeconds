@@ -32,6 +32,7 @@ export default function HelperPage() {
   });
   const [saving, setSaving] = useState(false);
   const [loadingLeads, setLoadingLeads] = useState(false);
+  const [locationError, setLocationError] = useState("");
 
   useEffect(() => {
     if (!user || !session?.access_token) return;
@@ -56,12 +57,12 @@ export default function HelperPage() {
           setProfile({ helper_id: "", is_new: true });
         }
       });
-  }, [user?.id, session?.access_token]);
+  }, [user, session?.access_token]);
 
   useEffect(() => {
     if (!profile?.helper_id || !session?.access_token) return;
     setLoadingLeads(true);
-    apiFetch(`/helper/leads?helper_id=${profile.helper_id}&radius_km=10`, {
+    apiFetch(`/helper/leads?helper_id=${profile.helper_id}&radius_km=50`, {
       token: session.access_token,
     })
       .then((r) => r.json())
@@ -69,17 +70,32 @@ export default function HelperPage() {
         setLeads(d.leads ?? []);
       })
       .finally(() => setLoadingLeads(false));
-  }, [profile?.helper_id, session?.access_token]);
+  }, [profile?.helper_id, profile?.location?.lat, profile?.location?.lng, session?.access_token]);
 
   const saveProfile = async () => {
     if (!session?.access_token || !user) return;
+    setLocationError("");
+    const locationInput = form.locationLabel.trim() || "Madison, WI";
     setSaving(true);
+    const geoRes = await apiFetch(
+      `/helper/geocode?address=${encodeURIComponent(locationInput)}`,
+      { token: session.access_token }
+    );
+    if (!geoRes.ok) {
+      setSaving(false);
+      const errBody = await geoRes.json().catch(() => ({}));
+      const msg = errBody.detail ?? "Could not find that location. Try a city name (e.g. Chicago, Madison) or full address.";
+      setLocationError(Array.isArray(msg) ? msg[0] : msg);
+      return;
+    }
+    const geo = await geoRes.json();
+    const location = { lat: geo.lat, lng: geo.lng, label: geo.label || locationInput };
     const res = await apiFetch("/helper/profile", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         user_id: user.id,
-        location: { lat: 43.0731, lng: -89.4012, label: form.locationLabel || "Madison, WI" },
+        location,
         vehicle_type: form.vehicle_type,
         lift_capacity_kg: parseFloat(form.lift_capacity_kg) || 20,
         default_quoted_fee: parseFloat(form.default_quoted_fee) || 0,
@@ -89,7 +105,7 @@ export default function HelperPage() {
     setSaving(false);
     if (res.ok) {
       const data = await res.json();
-      setProfile({ ...profile!, helper_id: data.helper_id, is_new: data.is_new });
+      setProfile({ ...profile!, helper_id: data.helper_id, is_new: data.is_new, location });
     }
   };
 
@@ -161,6 +177,9 @@ export default function HelperPage() {
             />
           </div>
         </div>
+        {locationError && (
+          <p className="mt-2 text-sm text-red-600">{locationError}</p>
+        )}
         <button
           type="button"
           onClick={saveProfile}

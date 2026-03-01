@@ -2,11 +2,41 @@ from datetime import datetime, timezone
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from app.auth import get_current_user
+from app.config import settings as app_settings
 from app.supabase_client import supabase
-from app.google_maps import calculate_distances_km
+from app.google_maps import calculate_distances_km, resolve_location_with_fallbacks
+from app.llm import normalize_location_for_geocode
 from app.schemas import HelperProfileBody, ExpressInterestBody, HelperAcceptBody
 
 router = APIRouter(prefix="/helper", tags=["helper"])
+
+
+@router.get("/geocode")
+def geocode_address(
+    address: str = Query(..., min_length=1),
+    current_user: dict = Depends(get_current_user),
+):
+    """Resolve helper's location (free text) to lat/lng: LLM normalizes intent, then Google Maps Geocoding."""
+    if not app_settings.google_maps_api_key:
+        raise HTTPException(
+            status_code=503,
+            detail="Google Maps API is not configured. Set GOOGLE_MAPS_API_KEY in the backend.",
+        )
+    raw = address.strip()
+    normalized = normalize_location_for_geocode(raw)
+    result = resolve_location_with_fallbacks(normalized)
+    if not result:
+        result = resolve_location_with_fallbacks(raw)
+    if not result:
+        raise HTTPException(
+            status_code=404,
+            detail="Could not find that location. Try a city name (e.g. Chicago, Madison) or full address.",
+        )
+    return {
+        "lat": result["lat"],
+        "lng": result["lng"],
+        "label": result.get("formatted_address") or normalized or raw,
+    }
 
 
 @router.post("/profile")

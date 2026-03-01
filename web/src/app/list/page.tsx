@@ -3,7 +3,6 @@
 import { useState, useRef } from "react";
 import Link from "next/link";
 import { useAuth } from "@/app/providers";
-import { createSupabaseBrowser } from "@/lib/supabase/client";
 import { apiFetch } from "@/lib/api";
 
 type DraftResponse = {

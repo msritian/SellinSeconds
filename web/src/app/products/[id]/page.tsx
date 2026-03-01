@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/app/providers";
 import { apiFetch, getApiUrl } from "@/lib/api";
+import { getStoredHelperMode } from "@/lib/helper-mode";
 
 type Product = {
   product_id: string;
@@ -32,10 +33,10 @@ export default function ProductPage() {
   const { user, session, loading } = useAuth();
   const [product, setProduct] = useState<Product | null>(null);
   const [error, setError] = useState("");
-  const [helperMode, setHelperMode] = useState(false);
+  const [helperModeOn, setHelperModeOn] = useState(false);
+  const [myHelperId, setMyHelperId] = useState<string | null>(null);
   const [quotedFee, setQuotedFee] = useState("");
   const [volunteering, setVolunteering] = useState(false);
-  const [chatId, setChatId] = useState<string | null>(null);
 
   const id = params.id as string;
 
@@ -51,6 +52,27 @@ export default function ProductPage() {
       setProduct(data);
     })();
   }, [id]);
+
+  useEffect(() => {
+    if (!user?.id) return;
+    setHelperModeOn(getStoredHelperMode(user.id));
+  }, [user?.id]);
+
+  useEffect(() => {
+    if (!helperModeOn || !user?.id || !session?.access_token) return;
+    apiFetch(`/helper/profile/${user.id}`, { token: session.access_token })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => data?.helper_id != null && setMyHelperId(data.helper_id))
+      .catch(() => {});
+  }, [helperModeOn, user?.id, session?.access_token]);
+
+  useEffect(() => {
+    const onStorage = () => {
+      if (user?.id) setHelperModeOn(getStoredHelperMode(user.id));
+    };
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, [user?.id]);
 
   if (loading) return <div className="p-8">Loading…</div>;
   if (!user) {
@@ -82,7 +104,6 @@ export default function ProductPage() {
     });
     if (!res.ok) return;
     const data = await res.json();
-    setChatId(data.chat_id);
     router.push(`/chat/${data.chat_id}`);
   };
 
@@ -97,6 +118,7 @@ export default function ProductPage() {
     if (res.ok) {
       const profile = await res.json();
       helperId = profile.helper_id;
+      setMyHelperId(helperId);
     } else {
       setError("Please complete your helper profile first (Helper Mode).");
       setVolunteering(false);
@@ -132,6 +154,7 @@ export default function ProductPage() {
         <div className="space-y-4">
           {product.media_urls?.length ? (
             <div className="overflow-hidden rounded-xl bg-stone-200">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={thumb ?? product.media_urls[0].url}
                 alt={product.item_name}
@@ -153,61 +176,81 @@ export default function ProductPage() {
           <p className="mt-1 text-sm text-stone-500">Seller: {product.seller.name}</p>
           <p className="mt-2 text-sm text-stone-500">Status: {product.status}</p>
 
-          {product.status === "available" && (
-            <button
-              type="button"
-              onClick={handleMessageSeller}
-              className="mt-6 w-full rounded-lg bg-amber-600 py-2.5 font-medium text-white hover:bg-amber-700"
-            >
-              Message seller / I&apos;m interested
-            </button>
-          )}
-
-          <section className="mt-8 border-t border-stone-200 pt-6">
-            <h2 className="font-semibold text-stone-800">Available helpers ({product.helper_count})</h2>
-            {product.helpers?.length ? (
-              <ul className="mt-2 space-y-2">
-                {product.helpers.map((h) => (
-                  <li
-                    key={h.helper_id}
-                    className="flex items-center justify-between rounded-lg border border-stone-200 bg-stone-50 px-4 py-2"
-                  >
-                    <span>
-                      {h.name} · {h.vehicle_type} · {h.proximity_km.toFixed(1)} km · ${h.quoted_fee.toFixed(2)} delivery
-                    </span>
-                    {user.id !== product.seller.user_id && (
-                      <Link
-                        href={`/chat?accept_helper=1&helper_id=${h.helper_id}&product_id=${product.product_id}`}
-                        className="text-sm font-medium text-amber-600 hover:underline"
-                      >
-                        Accept helper
-                      </Link>
-                    )}
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="mt-2 text-sm text-stone-500">No helpers yet.</p>
-            )}
-
-            <div className="mt-4">
-              <p className="text-sm font-medium text-stone-700">Volunteer to deliver this item</p>
-              <input
-                type="number"
-                placeholder="Your delivery fee ($)"
-                value={quotedFee}
-                onChange={(e) => setQuotedFee(e.target.value)}
-                className="mt-1 w-32 rounded border border-stone-300 px-2 py-1 text-sm"
-              />
+          {product.status === "available" &&
+            user.id !== product.seller.user_id &&
+            !helperModeOn && (
               <button
                 type="button"
-                onClick={handleVolunteer}
-                disabled={volunteering}
-                className="ml-2 rounded-lg bg-stone-700 px-4 py-1.5 text-sm text-white hover:bg-stone-800 disabled:opacity-50"
+                onClick={handleMessageSeller}
+                className="mt-6 w-full rounded-lg bg-amber-600 py-2.5 font-medium text-white hover:bg-amber-700"
               >
-                {volunteering ? "…" : "Volunteer to deliver"}
+                Message seller / I&apos;m interested
               </button>
-            </div>
+            )}
+
+          <section className="mt-8 border-t border-stone-200 pt-6">
+            {(() => {
+              const isSeller = user.id === product.seller.user_id;
+              const isHelper = helperModeOn && !isSeller;
+              const hasAlreadyVolunteered =
+                myHelperId != null &&
+                (product.helpers?.some((h) => h.helper_id === myHelperId) ?? false);
+              const showAvailableHelpers = !isHelper || hasAlreadyVolunteered;
+              const showVolunteer = isHelper && !hasAlreadyVolunteered;
+              return (
+                <>
+                  {showAvailableHelpers && (
+                    <>
+                      <h2 className="font-semibold text-stone-800">Available helpers ({product.helper_count})</h2>
+                      {product.helpers?.length ? (
+                        <ul className="mt-2 space-y-2">
+                          {product.helpers.map((h) => (
+                            <li
+                              key={h.helper_id}
+                              className="flex items-center justify-between rounded-lg border border-stone-200 bg-stone-50 px-4 py-2"
+                            >
+                              <span>
+                                {h.name} · {h.vehicle_type} · {h.proximity_km.toFixed(1)} km · ${h.quoted_fee.toFixed(2)} delivery
+                              </span>
+                              {!isSeller && h.helper_id !== myHelperId && (
+                                <Link
+                                  href={`/chat?accept_helper=1&helper_id=${h.helper_id}&product_id=${product.product_id}`}
+                                  className="text-sm font-medium text-amber-600 hover:underline"
+                                >
+                                  Accept helper
+                                </Link>
+                              )}
+                            </li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <p className="mt-2 text-sm text-stone-500">No helpers yet.</p>
+                      )}
+                    </>
+                  )}
+                  {showVolunteer && (
+                    <div>
+                      <p className="text-sm font-medium text-stone-700">Volunteer to deliver this item</p>
+                      <input
+                        type="number"
+                        placeholder="Your delivery fee ($)"
+                        value={quotedFee}
+                        onChange={(e) => setQuotedFee(e.target.value)}
+                        className="mt-1 w-32 rounded border border-stone-300 px-2 py-1 text-sm"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleVolunteer}
+                        disabled={volunteering}
+                        className="ml-2 rounded-lg bg-stone-700 px-4 py-1.5 text-sm text-white hover:bg-stone-800 disabled:opacity-50"
+                      >
+                        {volunteering ? "…" : "Volunteer to deliver"}
+                      </button>
+                    </div>
+                  )}
+                </>
+              );
+            })()}
           </section>
         </div>
       </div>

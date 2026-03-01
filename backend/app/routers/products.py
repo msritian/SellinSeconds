@@ -10,6 +10,39 @@ from app.schemas import StatusBody
 router = APIRouter(tags=["products"])
 
 
+@router.get("/products/by-seller/{seller_id}")
+def get_products_by_seller(
+    seller_id: str,
+    status: str = Query("available", description="Filter by status (e.g. available, sold)"),
+):
+    """List products for a seller, optionally filtered by status. Default: available only."""
+    r = (
+        supabase.table("products")
+        .select("id, item_name, description, price, status, location, media_urls, created_at")
+        .eq("seller_id", seller_id)
+        .eq("status", status)
+        .order("created_at", desc=True)
+        .execute()
+    )
+    products = r.data or []
+    return {
+        "products": [
+            {
+                "product_id": p["id"],
+                "item_name": p["item_name"],
+                "description": p.get("description"),
+                "price": float(p["price"]),
+                "status": p["status"],
+                "location": p.get("location"),
+                "media_urls": p.get("media_urls") or [],
+                "created_at": p.get("created_at"),
+            }
+            for p in products
+        ],
+        "total": len(products),
+    }
+
+
 @router.get("/products/{product_id}")
 def get_product(product_id: str):
     r = supabase.table("products").select("id, seller_id, item_name, description, price, status, location, media_urls, created_at").eq("id", product_id).single().execute()
