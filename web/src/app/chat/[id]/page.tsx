@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/app/providers";
+import { LoadingSpinner } from "@/app/components/LoadingSpinner";
 import { apiFetch } from "@/lib/api";
 
 type Message = { id: string; sender_id: string; content: string; sent_at: string };
@@ -89,7 +90,7 @@ export default function ChatPage() {
     }
   };
 
-  if (loading) return <div className="p-8">Loading…</div>;
+  if (loading) return <LoadingSpinner />;
   if (!user) {
     router.push("/login");
     return null;

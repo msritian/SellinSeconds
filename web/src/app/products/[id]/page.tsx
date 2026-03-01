@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/app/providers";
+import { LoadingSpinner } from "@/app/components/LoadingSpinner";
 import { apiFetch, getApiUrl } from "@/lib/api";
 import { getStoredHelperMode } from "@/lib/helper-mode";
 
@@ -32,6 +33,7 @@ export default function ProductPage() {
   const router = useRouter();
   const { user, session, loading } = useAuth();
   const [product, setProduct] = useState<Product | null>(null);
+  const [loadingProduct, setLoadingProduct] = useState(true);
   const [error, setError] = useState("");
   const [helperModeOn, setHelperModeOn] = useState(false);
   const [myHelperId, setMyHelperId] = useState<string | null>(null);
@@ -41,16 +43,26 @@ export default function ProductPage() {
   const id = params.id as string;
 
   useEffect(() => {
-    if (!id) return;
-    (async () => {
-      const res = await fetch(getApiUrl(`/products/${id}`));
-      if (!res.ok) {
-        setError("Product not found");
-        return;
-      }
-      const data = await res.json();
-      setProduct(data);
-    })();
+    if (!id) {
+      setLoadingProduct(false);
+      return;
+    }
+    setLoadingProduct(true);
+    setError("");
+    fetch(getApiUrl(`/products/${id}`))
+      .then((res) => {
+        if (!res.ok) {
+          setError("Product not found");
+          setProduct(null);
+          return;
+        }
+        return res.json();
+      })
+      .then((data) => {
+        if (data) setProduct(data);
+      })
+      .catch(() => setError("Could not load product."))
+      .finally(() => setLoadingProduct(false));
   }, [id]);
 
   useEffect(() => {
@@ -74,11 +86,12 @@ export default function ProductPage() {
     return () => window.removeEventListener("storage", onStorage);
   }, [user?.id]);
 
-  if (loading) return <div className="p-8">Loading…</div>;
+  if (loading) return <LoadingSpinner />;
   if (!user) {
     router.push("/login");
     return null;
   }
+  if (loadingProduct) return <LoadingSpinner />;
   if (error || !product) {
     return (
       <div className="p-8">

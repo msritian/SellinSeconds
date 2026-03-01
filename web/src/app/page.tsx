@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { useAuth } from "./providers";
+import { LoadingSpinner } from "./components/LoadingSpinner";
 import { apiFetch } from "@/lib/api";
 import Link from "next/link";
 
@@ -18,13 +19,7 @@ export default function HomePage() {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  if (loading) {
-    return (
-      <div className="flex min-h-[60vh] items-center justify-center">
-        <p className="text-stone-500">Loading…</p>
-      </div>
-    );
-  }
+  if (loading) return <LoadingSpinner />;
 
   if (!user) {
     return (

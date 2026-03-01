@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useAuth } from "@/app/providers";
+import { LoadingSpinner } from "@/app/components/LoadingSpinner";
 import { apiFetch } from "@/lib/api";
 
 type Lead = {
@@ -109,7 +110,7 @@ export default function HelperPage() {
     }
   };
 
-  if (loading) return <div className="p-8">Loading…</div>;
+  if (loading) return <LoadingSpinner />;
   if (!user) {
     return (
       <div className="p-8">
@@ -194,7 +195,7 @@ export default function HelperPage() {
         <section className="mt-8">
           <h2 className="font-semibold text-stone-800">Delivery leads near you</h2>
           {loadingLeads ? (
-            <p className="mt-2 text-sm text-stone-500">Loading…</p>
+            <LoadingSpinner fullPage={false} className="mt-4" />
           ) : leads.length === 0 ? (
             <p className="mt-2 text-sm text-stone-500">No nearby listings right now.</p>
           ) : (
