@@ -33,6 +33,12 @@ export default function ChatPage() {
   }, [messages]);
 
   useEffect(() => {
+    if (!loading && !user) {
+      router.push("/login");
+    }
+  }, [loading, user, router]);
+
+  useEffect(() => {
     if (!chatId || !session?.access_token) return;
     setLoadError(null);
     Promise.all([
@@ -45,12 +51,19 @@ export default function ChatPage() {
       apiFetch(`/chat/${chatId}/messages`, { token: session.access_token })
         .then((r) => r.json())
         .then((d) => setMessages(d.messages ?? [])),
-    ]).catch((err) => {
-      const message = err?.message?.includes("fetch") || err?.name === "TypeError"
-        ? "Could not reach the server. Make sure the backend is running (e.g. on port 8001)."
-        : err?.message ?? "Failed to load chat.";
-      setLoadError(message);
-    });
+    ])
+      .then(() => {
+        apiFetch(`/chat/${chatId}/read`, {
+          method: "PATCH",
+          token: session!.access_token,
+        }).catch(() => {});
+      })
+      .catch((err) => {
+        const message = err?.message?.includes("fetch") || err?.name === "TypeError"
+          ? "Could not reach the server. Make sure the backend is running (e.g. on port 8001)."
+          : err?.message ?? "Failed to load chat.";
+        setLoadError(message);
+      });
   }, [chatId, session?.access_token]);
 
   const sendMessage = async () => {
@@ -100,10 +113,7 @@ export default function ChatPage() {
   };
 
   if (loading) return <LoadingSpinner />;
-  if (!user) {
-    router.push("/login");
-    return null;
-  }
+  if (!user) return null;
 
   return (
     <div className="mx-auto flex max-w-2xl flex-col px-4 py-6">
