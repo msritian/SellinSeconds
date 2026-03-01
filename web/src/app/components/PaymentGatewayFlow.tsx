@@ -34,7 +34,7 @@ export function PaymentGatewayFlow({
     if (releasing || released) return;
     setFlowStarted(true);
 
-    const steps: Step[] = ["hold", "gateway", "to_seller", ...(paymentHold.has_helper ? ["to_helper"] : []), "complete"];
+    const steps: Step[] = ["hold", "gateway", "to_seller", ...(paymentHold.has_helper ? (["to_helper"] as Step[]) : []), "complete"];
     for (const step of steps) {
       setCurrentStep(step);
       await new Promise((r) => setTimeout(r, step === "gateway" ? 800 : 500));

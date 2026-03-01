@@ -43,7 +43,7 @@ export async function apiFetch(
   let response: Response;
   try {
     response = await fetch(getApiUrl(path), { ...rest, headers });
-  } catch (err) {
+  } catch {
     // Network error (backend down, CORS, etc.) – return 503 so callers get a Response instead of a throw
     return new Response(JSON.stringify({ detail: "Network error" }), {
       status: 503,
