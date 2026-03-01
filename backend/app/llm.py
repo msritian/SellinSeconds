@@ -27,7 +27,7 @@ def extract_listing_from_text(description: str, default_location: Optional[dict]
         return _fallback_extraction(description, default_location)
     try:
         resp = client.messages.create(
-            model="claude-3-5-sonnet-20241022",
+            model=settings.anthropic_model,
             max_tokens=1024,
             system=f"You are a marketplace listing parser. Extract: item_name, description, price (number), location. {loc_str} "
             "Respond with valid JSON only, no markdown or extra text. Keys: item_name, description, price, location (object with lat, lng, label).",
@@ -155,7 +155,7 @@ def conversational_search(query: str, match_products_fn) -> str:
 
     for _ in range(5):
         resp = client.messages.create(
-            model="claude-3-5-sonnet-20241022",
+            model=settings.anthropic_model,
             max_tokens=1024,
             tools=tools,
             messages=messages,

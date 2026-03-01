@@ -23,10 +23,11 @@ def helper_profile(body: HelperProfileBody, current_user: dict = Depends(get_cur
         "assistance_notes": body.assistance_notes,
         "updated_at": datetime.now(timezone.utc).isoformat(),
     }
-    existing = supabase.table("helper_profiles").select("id").eq("user_id", current_user["id"]).single().execute()
-    if existing.data:
-        supabase.table("helper_profiles").update(profile_row).eq("id", existing.data["id"]).execute()
-        return {"helper_id": existing.data["id"], "is_new": False, "profile": profile_row}
+    existing = supabase.table("helper_profiles").select("id").eq("user_id", current_user["id"]).limit(1).execute()
+    if existing.data and len(existing.data) > 0:
+        row = existing.data[0]
+        supabase.table("helper_profiles").update(profile_row).eq("id", row["id"]).execute()
+        return {"helper_id": row["id"], "is_new": False, "profile": profile_row}
     ins = supabase.table("helper_profiles").insert(profile_row).execute()
     if not ins.data:
         raise HTTPException(status_code=500, detail="Failed to create profile")
@@ -37,10 +38,10 @@ def helper_profile(body: HelperProfileBody, current_user: dict = Depends(get_cur
 def get_helper_profile(user_id: str, current_user: dict = Depends(get_current_user)):
     if user_id != current_user["id"]:
         raise HTTPException(status_code=403, detail="Forbidden")
-    r = supabase.table("helper_profiles").select("*").eq("user_id", user_id).single().execute()
-    if not r.data:
-        raise HTTPException(status_code=404, detail="Profile not found")
-    d = r.data
+    r = supabase.table("helper_profiles").select("*").eq("user_id", user_id).limit(1).execute()
+    if not r.data or len(r.data) == 0:
+        raise HTTPException(status_code=404, detail="Helper profile not found")
+    d = r.data[0]
     return {
         "helper_id": d["id"],
         "user_id": d["user_id"],
@@ -60,16 +61,17 @@ def get_leads(
     radius_km: float = Query(5.0),
     current_user: dict = Depends(get_current_user),
 ):
-    profile = supabase.table("helper_profiles").select("id, user_id, location").eq("user_id", current_user["id"]).single().execute()
-    if not profile.data:
+    profile = supabase.table("helper_profiles").select("id, user_id, location").eq("user_id", current_user["id"]).limit(1).execute()
+    if not profile.data or len(profile.data) == 0:
         raise HTTPException(status_code=404, detail="Helper profile not found")
-    if helper_id and helper_id != profile.data["id"]:
+    profile_row = profile.data[0]
+    if helper_id and helper_id != profile_row["id"]:
         raise HTTPException(status_code=403, detail="Forbidden")
     products = supabase.table("products").select("id, item_name, price, location, seller_id").eq("status", "available").execute()
     list_data = products.data or []
     if not list_data:
         return {"leads": []}
-    origin = profile.data["location"] or {"lat": 0, "lng": 0}
+    origin = profile_row["location"] or {"lat": 0, "lng": 0}
     destinations = [p.get("location") or {"lat": 0, "lng": 0} for p in list_data]
     distances = calculate_distances_km(origin, destinations)
     seller_ids = list({p["seller_id"] for p in list_data})
@@ -93,8 +95,8 @@ def get_leads(
 
 @router.post("/express_interest")
 def express_interest(body: ExpressInterestBody, current_user: dict = Depends(get_current_user)):
-    profile = supabase.table("helper_profiles").select("id").eq("id", body.helper_id).eq("user_id", current_user["id"]).single().execute()
-    if not profile.data:
+    profile = supabase.table("helper_profiles").select("id").eq("id", body.helper_id).eq("user_id", current_user["id"]).limit(1).execute()
+    if not profile.data or len(profile.data) == 0:
         raise HTTPException(status_code=404, detail="Helper profile not found")
     supabase.table("product_helpers").upsert({"product_id": body.product_id, "helper_id": body.helper_id, "quoted_fee": body.quoted_fee}, on_conflict="product_id,helper_id").execute()
     return {"status": "interest_registered", "product_id": body.product_id, "helper_id": body.helper_id, "quoted_fee": body.quoted_fee}
@@ -104,20 +106,22 @@ def express_interest(body: ExpressInterestBody, current_user: dict = Depends(get
 def accept_helper(body: HelperAcceptBody, current_user: dict = Depends(get_current_user)):
     if body.buyer_id != current_user["id"]:
         raise HTTPException(status_code=403, detail="Only the buyer can accept a helper")
-    profile = supabase.table("helper_profiles").select("id, user_id, vehicle_type, default_quoted_fee").eq("id", body.helper_id).single().execute()
-    if not profile.data:
+    profile = supabase.table("helper_profiles").select("id, user_id, vehicle_type, default_quoted_fee").eq("id", body.helper_id).limit(1).execute()
+    if not profile.data or len(profile.data) == 0:
         raise HTTPException(status_code=404, detail="Helper not found")
-    ph = supabase.table("product_helpers").select("quoted_fee").eq("product_id", body.product_id).eq("helper_id", body.helper_id).single().execute()
-    quoted_fee = float(ph.data["quoted_fee"]) if ph.data else float(profile.data.get("default_quoted_fee", 0))
-    seller = supabase.table("users").select("name").eq("id", profile.data["user_id"]).single().execute()
-    supabase.table("chat_participants").upsert({"chat_id": body.chat_id, "user_id": profile.data["user_id"], "role": "helper"}, on_conflict="chat_id,user_id").execute()
+    profile_row = profile.data[0]
+    ph = supabase.table("product_helpers").select("quoted_fee").eq("product_id", body.product_id).eq("helper_id", body.helper_id).limit(1).execute()
+    quoted_fee = float(ph.data[0]["quoted_fee"]) if ph.data and len(ph.data) > 0 else float(profile_row.get("default_quoted_fee", 0))
+    seller = supabase.table("users").select("name").eq("id", profile_row["user_id"]).limit(1).execute()
+    seller_name = (seller.data[0].get("name", "Helper")) if seller.data and len(seller.data) > 0 else "Helper"
+    supabase.table("chat_participants").upsert({"chat_id": body.chat_id, "user_id": profile_row["user_id"], "role": "helper"}, on_conflict="chat_id,user_id").execute()
     return {
         "status": "helper_accepted",
         "chat_id": body.chat_id,
         "accepted_helper": {
-            "helper_id": profile.data["id"],
-            "name": (seller.data or {}).get("name", "Helper"),
-            "vehicle_type": profile.data["vehicle_type"],
+            "helper_id": profile_row["id"],
+            "name": seller_name,
+            "vehicle_type": profile_row["vehicle_type"],
             "quoted_fee": quoted_fee,
         },
     }

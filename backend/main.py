@@ -1,9 +1,30 @@
+import logging
+logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.requests import Request
+from starlette.responses import Response
 from app.routers import user, auth, seller, products, helper, chat, payment
+
+log = logging.getLogger(__name__)
+
+
+class Log4xxMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next) -> Response:
+        response = await call_next(request)
+        if 400 <= response.status_code < 600:
+            body = b""
+            async for chunk in response.body_iterator:
+                body += chunk
+            log.warning("HTTP %s %s -> %s", response.status_code, request.url.path, body.decode("utf-8", errors="replace"))
+            return Response(content=body, status_code=response.status_code, headers=dict(response.headers))
+        return response
+
 
 app = FastAPI(title="Campus Marketplace API", version="1.0")
 
+app.add_middleware(Log4xxMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[

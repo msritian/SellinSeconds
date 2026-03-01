@@ -6,6 +6,7 @@ class Settings(BaseSettings):
     supabase_service_role_key: str
     google_maps_api_key: str = ""
     anthropic_api_key: str = ""
+    anthropic_model: str = "claude-sonnet-4-6"  # override via ANTHROPIC_MODEL if needed
     app_url: str = "http://localhost:3000"
 
     class Config:

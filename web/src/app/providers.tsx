@@ -4,6 +4,8 @@ import { createContext, useContext, useEffect, useState } from "react";
 import { createSupabaseBrowser } from "@/lib/supabase/client";
 import type { User } from "@supabase/supabase-js";
 
+const supabase = createSupabaseBrowser();
+
 type AuthContextType = {
   user: User | null;
   session: { access_token: string } | null;
@@ -22,7 +24,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<{ access_token: string } | null>(null);
   const [loading, setLoading] = useState(true);
-  const supabase = createSupabaseBrowser();
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session: s } }) => {
@@ -37,7 +38,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUser(s?.user ?? null);
     });
     return () => subscription.unsubscribe();
-  }, [supabase.auth]);
+  }, []);
 
   const signOut = async () => {
     await supabase.auth.signOut();
