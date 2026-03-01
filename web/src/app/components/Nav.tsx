@@ -35,8 +35,15 @@ export function Nav() {
     else router.push("/");
   };
 
+  const isOnChatSection = pathname === "/chat" || pathname.startsWith("/chat/");
+
   useEffect(() => {
     if (!session?.access_token) {
+      setUnreadChats(0);
+      lastOptimisticPath.current = null;
+      return;
+    }
+    if (!isOnChatSection) {
       setUnreadChats(0);
       lastOptimisticPath.current = null;
       return;
@@ -52,7 +59,7 @@ export function Nav() {
         setUnreadChats(chatsWithUnread);
       })
       .catch(() => setUnreadChats(0));
-  }, [session?.access_token, pathname]);
+  }, [session?.access_token, pathname, isOnChatSection]);
 
   const isAuthPage = pathname === "/login" || pathname === "/register";
 

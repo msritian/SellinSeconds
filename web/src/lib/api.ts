@@ -16,6 +16,20 @@ export function getApiUrl(path: string): string {
   return `${base}/api/v1${pathPart}`;
 }
 
+/** WebSocket URL for chat. Use ws:// or wss:// based on page protocol when no base; else based on base. */
+export function getChatWebSocketUrl(chatId: string, token: string): string {
+  const base = getBase();
+  const path = `/api/v1/chat/ws?chat_id=${encodeURIComponent(chatId)}&token=${encodeURIComponent(token)}`;
+  if (!base) {
+    const protocol = typeof window !== "undefined" && window.location?.protocol === "https:" ? "wss:" : "ws:";
+    const host = typeof window !== "undefined" ? window.location.host : "localhost:3001";
+    return `${protocol}//${host}${path}`;
+  }
+  const wsProtocol = base.startsWith("https") ? "wss" : "ws";
+  const host = base.replace(/^https?:\/\//, "");
+  return `${wsProtocol}://${host}${path}`;
+}
+
 export async function apiFetch(
   path: string,
   options: RequestInit & { token?: string } = {}
@@ -24,7 +38,16 @@ export async function apiFetch(
   const headers = new Headers(rest.headers);
   if (token) headers.set("Authorization", `Bearer ${token}`);
 
-  let response = await fetch(getApiUrl(path), { ...rest, headers });
+  let response: Response;
+  try {
+    response = await fetch(getApiUrl(path), { ...rest, headers });
+  } catch (err) {
+    // Network error (backend down, CORS, etc.) – return 503 so callers get a Response instead of a throw
+    return new Response(JSON.stringify({ detail: "Network error" }), {
+      status: 503,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
 
   // On 401 (e.g. expired token), refresh session and retry once with new token
   if (response.status === 401 && token && typeof window !== "undefined") {
@@ -33,7 +56,14 @@ export async function apiFetch(
     const newToken = !error && data.session?.access_token ? data.session.access_token : null;
     if (newToken && newToken !== token) {
       headers.set("Authorization", `Bearer ${newToken}`);
-      response = await fetch(getApiUrl(path), { ...rest, headers });
+      try {
+        response = await fetch(getApiUrl(path), { ...rest, headers });
+      } catch {
+        return new Response(JSON.stringify({ detail: "Network error" }), {
+          status: 503,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
     }
   }
 

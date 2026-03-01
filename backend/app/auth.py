@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional  # noqa: F401 used by get_user_from_token
 from fastapi import Depends, HTTPException
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 import httpx
@@ -31,4 +31,24 @@ async def get_current_user(
     email = (u.get("email") or "") if isinstance(u, dict) else getattr(u, "email", "") or ""
     if not user_id:
         raise HTTPException(status_code=401, detail="Invalid token")
+    return {"id": str(user_id), "email": email}
+
+
+async def get_user_from_token(token: str) -> Optional[dict]:
+    """Validate JWT and return user dict or None (for WebSocket auth via query param)."""
+    if not token:
+        return None
+    async with httpx.AsyncClient() as client:
+        r = await client.get(
+            f"{settings.supabase_url}/auth/v1/user",
+            headers={"Authorization": f"Bearer {token}", "apikey": settings.supabase_service_role_key},
+        )
+    if r.status_code != 200:
+        return None
+    data = r.json()
+    u = data.get("user") or data
+    user_id = u.get("id") if isinstance(u, dict) else getattr(u, "id", None)
+    email = (u.get("email") or "") if isinstance(u, dict) else getattr(u, "email", "") or ""
+    if not user_id:
+        return None
     return {"id": str(user_id), "email": email}

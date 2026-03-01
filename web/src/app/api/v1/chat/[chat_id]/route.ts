@@ -28,10 +28,28 @@ export async function GET(
     .eq("id", chat.product_id)
     .single();
 
+  let finalize_state: { buyer_confirmed: boolean; seller_confirmed: boolean; hold_triggered: boolean; status: string } | null = null;
+  const { data: fi } = await supabase
+    .from("finalize_intents")
+    .select("buyer_confirmed, seller_confirmed, hold_triggered")
+    .eq("chat_id", chat_id)
+    .eq("product_id", chat.product_id)
+    .limit(1)
+    .maybeSingle();
+  if (fi) {
+    finalize_state = {
+      buyer_confirmed: Boolean(fi.buyer_confirmed),
+      seller_confirmed: Boolean(fi.seller_confirmed),
+      hold_triggered: Boolean(fi.hold_triggered),
+      status: fi.buyer_confirmed && fi.seller_confirmed ? "both_confirmed" : "pending",
+    };
+  }
+
   return NextResponse.json({
     chat_id: chat.id,
     product_id: chat.product_id,
     my_role: participant.role,
     product: product ? { product_id: product.id, item_name: product.item_name, price: Number(product.price) } : null,
+    finalize_state,
   });
 }

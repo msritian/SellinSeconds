@@ -24,6 +24,26 @@ export async function POST(req: NextRequest) {
     }
 
     const supabase = createSupabaseAdmin();
+
+    // Idempotent: return existing chat if buyer+seller already have one for this product
+    const { data: existingChats } = await supabase
+      .from("chats")
+      .select("id")
+      .eq("product_id", product_id);
+    for (const c of existingChats ?? []) {
+      const { data: participants } = await supabase
+        .from("chat_participants")
+        .select("user_id")
+        .eq("chat_id", c.id);
+      const userIds = new Set((participants ?? []).map((p) => p.user_id));
+      if (userIds.has(buyer_id) && userIds.has(seller_id) && userIds.size === 2) {
+        return NextResponse.json({
+          chat_id: c.id,
+          participants: [buyer_id, seller_id],
+        });
+      }
+    }
+
     const { data: chat, error } = await supabase
       .from("chats")
       .insert({ product_id })
