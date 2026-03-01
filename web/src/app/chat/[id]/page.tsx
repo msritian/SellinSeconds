@@ -25,6 +25,7 @@ export default function ChatPage() {
     status: string;
     hold_triggered: boolean;
   } | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -33,15 +34,23 @@ export default function ChatPage() {
 
   useEffect(() => {
     if (!chatId || !session?.access_token) return;
-    apiFetch(`/chat/${chatId}`, { token: session.access_token })
-      .then((r) => r.json())
-      .then((d) => {
-        if (d.product) setProduct(d.product);
-        if (d.my_role) setMyRole(d.my_role);
-      });
-    apiFetch(`/chat/${chatId}/messages`, { token: session.access_token })
-      .then((r) => r.json())
-      .then((d) => setMessages(d.messages ?? []));
+    setLoadError(null);
+    Promise.all([
+      apiFetch(`/chat/${chatId}`, { token: session.access_token })
+        .then((r) => r.json())
+        .then((d) => {
+          if (d.product) setProduct(d.product);
+          if (d.my_role) setMyRole(d.my_role);
+        }),
+      apiFetch(`/chat/${chatId}/messages`, { token: session.access_token })
+        .then((r) => r.json())
+        .then((d) => setMessages(d.messages ?? [])),
+    ]).catch((err) => {
+      const message = err?.message?.includes("fetch") || err?.name === "TypeError"
+        ? "Could not reach the server. Make sure the backend is running (e.g. on port 8001)."
+        : err?.message ?? "Failed to load chat.";
+      setLoadError(message);
+    });
   }, [chatId, session?.access_token]);
 
   const sendMessage = async () => {
@@ -111,6 +120,12 @@ export default function ChatPage() {
             </span>
           )}
         </div>
+
+        {loadError && (
+          <div className="border-b border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+            {loadError}
+          </div>
+        )}
 
         {finalizeState && (
           <div className="border-b border-amber-200 bg-amber-50 px-4 py-3 text-sm">

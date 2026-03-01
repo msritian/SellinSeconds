@@ -107,12 +107,11 @@ export default function ProductPage() {
     if (!session?.access_token) return;
     const res = await apiFetch("/chat/initiate", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
+      body: {
         product_id: product.product_id,
         buyer_id: user.id,
         seller_id: product.seller.user_id,
-      }),
+      },
       token: session.access_token,
     });
     if (!res.ok) return;
@@ -140,12 +139,11 @@ export default function ProductPage() {
     const fee = parseFloat(quotedFee) || 0;
     const r2 = await apiFetch("/helper/express_interest", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
+      body: {
         helper_id: helperId,
         product_id: product.product_id,
         quoted_fee: fee,
-      }),
+      },
       token: session.access_token,
     });
     setVolunteering(false);
