@@ -75,6 +75,36 @@ def _fallback_extraction(description: str, default_location: Optional[dict]) -> 
     }
 
 
+def normalize_location_for_geocode(user_input: str) -> str:
+    """Use LLM to turn helper's free-text location into a single-line address for Google Geocoding."""
+    s = (user_input or "").strip()
+    if not s:
+        return "USA"
+    client = _get_client()
+    if not client:
+        return s
+    try:
+        resp = client.messages.create(
+            model=settings.anthropic_model,
+            max_tokens=128,
+            system="You convert a user's location description into a single line address suitable for Google Geocoding. "
+            "Output only the address, nothing else. Examples: 'Chicago' -> 'Chicago, IL, USA'; "
+            "'downtown madison' -> 'Madison, WI, USA'; 'Sellery Hall' -> 'Sellery Hall, Madison, WI, USA'. "
+            "Prefer US addresses; include city and state when possible.",
+            messages=[{"role": "user", "content": s}],
+        )
+        raw = None
+        for block in getattr(resp, "content", []):
+            if getattr(block, "type", None) == "text":
+                raw = getattr(block, "text", None)
+                break
+        if raw and raw.strip():
+            return raw.strip()
+    except Exception:
+        pass
+    return s
+
+
 def to_markdown_preview(extracted: dict) -> str:
     return (
         "| Field | Value |\n|-------|-------|\n"

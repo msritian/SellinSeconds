@@ -32,8 +32,7 @@ export default function RegisterPage() {
     }
     setLoading(true);
     const supabase = createSupabaseBrowser();
-    const { data: { session } } = await supabase.auth.getSession();
-    const token = session?.access_token;
+    await supabase.auth.getSession();
 
     const res = await fetch(getApiUrl("/user/register"), {
       method: "POST",

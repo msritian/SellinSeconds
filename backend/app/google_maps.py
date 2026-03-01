@@ -30,6 +30,24 @@ def resolve_location(location_string: str) -> Optional[dict]:
     }
 
 
+def resolve_location_with_fallbacks(location_string: str) -> Optional[dict]:
+    """Try to geocode; if fail, try with ', USA' appended (helps for city names)."""
+    s = location_string.strip()
+    if not s:
+        return None
+    result = resolve_location(s)
+    if result:
+        return result
+    if "," not in s:
+        result = resolve_location(s + ", USA")
+        if result:
+            return result
+        result = resolve_location(s + ", US")
+        if result:
+            return result
+    return None
+
+
 def calculate_distances_km(
     origin: dict,
     destinations: List[dict],

@@ -4,15 +4,31 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "../providers";
 import { useState, useEffect } from "react";
+import { getStoredHelperMode, setStoredHelperMode } from "@/lib/helper-mode";
 
 export function Nav() {
   const pathname = usePathname();
   const router = useRouter();
-  const { user, session, loading, signOut } = useAuth();
-  const [helperMode, setHelperMode] = useState(pathname === "/helper");
+  const { user, loading, signOut } = useAuth();
+  const [helperMode, setHelperMode] = useState(false);
+
   useEffect(() => {
-    setHelperMode(pathname === "/helper");
-  }, [pathname]);
+    if (!user?.id) return;
+    const stored = getStoredHelperMode(user.id);
+    if (pathname === "/helper") {
+      setHelperMode(true);
+      setStoredHelperMode(user.id, true);
+    } else {
+      setHelperMode(stored);
+    }
+  }, [user?.id, pathname]);
+
+  const handleHelperModeChange = (on: boolean) => {
+    setHelperMode(on);
+    setStoredHelperMode(user?.id, on);
+    if (on) router.push("/helper");
+    else router.push("/");
+  };
 
   const isAuthPage = pathname === "/login" || pathname === "/register";
 
@@ -70,16 +86,18 @@ export function Nav() {
               >
                 List an Item
               </Link>
+              <Link
+                href="/seller/listings"
+                className="rounded-md px-3 py-1.5 text-sm font-medium text-stone-600 hover:bg-stone-100"
+              >
+                My listings
+              </Link>
               <label className="flex items-center gap-2 text-sm">
                 <span className="text-stone-600">Helper Mode</span>
                 <input
                   type="checkbox"
                   checked={helperMode}
-                  onChange={(e) => {
-                    setHelperMode(e.target.checked);
-                    if (e.target.checked) router.push("/helper");
-                    else router.push("/");
-                  }}
+                  onChange={(e) => handleHelperModeChange(e.target.checked)}
                   className="h-4 w-8 rounded-full accent-amber-600"
                 />
               </label>

@@ -27,7 +27,7 @@ export async function PATCH(
     .from("chat_participants")
     .select("user_id")
     .eq("chat_id", chat_id);
-  const isParticipant = existing?.some((p) => p.user_id === user.id);
+  const isParticipant = (existing as { user_id: string }[] | null)?.some((p) => p.user_id === user.id);
   if (!isParticipant) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
@@ -44,7 +44,7 @@ export async function PATCH(
     .eq("chat_id", chat_id);
   return NextResponse.json({
     chat_id,
-    participants: participants?.map((p) => p.user_id) ?? [],
+    participants: (participants as { user_id: string }[] | null)?.map((p) => p.user_id) ?? [],
     added_user_id: user_id,
   });
 }
