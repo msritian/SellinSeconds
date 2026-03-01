@@ -144,10 +144,26 @@ def accept_helper(body: HelperAcceptBody, current_user: dict = Depends(get_curre
     quoted_fee = float(ph.data[0]["quoted_fee"]) if ph.data and len(ph.data) > 0 else float(profile_row.get("default_quoted_fee", 0))
     seller = supabase.table("users").select("name").eq("id", profile_row["user_id"]).limit(1).execute()
     seller_name = (seller.data[0].get("name", "Helper")) if seller.data and len(seller.data) > 0 else "Helper"
-    supabase.table("chat_participants").upsert({"chat_id": body.chat_id, "user_id": profile_row["user_id"], "role": "helper"}, on_conflict="chat_id,user_id").execute()
+    if body.chat_id:
+        supabase.table("chat_participants").upsert({"chat_id": body.chat_id, "user_id": profile_row["user_id"], "role": "helper"}, on_conflict="chat_id,user_id").execute()
+        return {
+            "status": "helper_accepted",
+            "chat_id": body.chat_id,
+            "accepted_helper": {
+                "helper_id": profile_row["id"],
+                "name": seller_name,
+                "vehicle_type": profile_row["vehicle_type"],
+                "quoted_fee": quoted_fee,
+            },
+        }
+    supabase.table("product_accepted_helpers").upsert(
+        {"product_id": body.product_id, "buyer_id": body.buyer_id, "helper_id": body.helper_id},
+        on_conflict="product_id,buyer_id,helper_id",
+    ).execute()
     return {
-        "status": "helper_accepted",
-        "chat_id": body.chat_id,
+        "status": "helper_accepted_pending_chat",
+        "chat_id": None,
+        "message": "Helper will be added to the chat when you start one with the seller.",
         "accepted_helper": {
             "helper_id": profile_row["id"],
             "name": seller_name,

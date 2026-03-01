@@ -4,14 +4,18 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "../providers";
 import { LoadingSpinner } from "./LoadingSpinner";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
+import { apiFetch } from "@/lib/api";
 import { getStoredHelperMode, setStoredHelperMode } from "@/lib/helper-mode";
+const isChatDetailPath = (path: string) => path.startsWith("/chat/") && path !== "/chat" && path.length > 6;
 
 export function Nav() {
   const pathname = usePathname();
   const router = useRouter();
-  const { user, loading, signOut } = useAuth();
-  const [helperMode, setHelperMode] = useState(false);
+  const { user, session, loading, signOut } = useAuth();
+  const [helperMode, setHelperMode] = useState(pathname === "/helper");
+  const [unreadChats, setUnreadChats] = useState(0);
+  const lastOptimisticPath = useRef<string | null>(null);
 
   useEffect(() => {
     if (!user?.id) return;
@@ -30,6 +34,32 @@ export function Nav() {
     if (on) router.push("/helper");
     else router.push("/");
   };
+
+  const isOnChatSection = pathname === "/chat" || pathname.startsWith("/chat/");
+
+  useEffect(() => {
+    if (!session?.access_token) {
+      setUnreadChats(0);
+      lastOptimisticPath.current = null;
+      return;
+    }
+    if (!isOnChatSection) {
+      setUnreadChats(0);
+      lastOptimisticPath.current = null;
+      return;
+    }
+    if (isChatDetailPath(pathname) && lastOptimisticPath.current !== pathname) {
+      lastOptimisticPath.current = pathname;
+      setUnreadChats((prev) => Math.max(0, prev - 1));
+    }
+    apiFetch("/chat", { token: session.access_token })
+      .then((r) => r.json())
+      .then((d) => {
+        const chatsWithUnread = (d.chats ?? []).filter((c: { unread_count?: number }) => (c.unread_count ?? 0) > 0).length;
+        setUnreadChats(chatsWithUnread);
+      })
+      .catch(() => setUnreadChats(0));
+  }, [session?.access_token, pathname, isOnChatSection]);
 
   const isAuthPage = pathname === "/login" || pathname === "/register";
 
@@ -84,6 +114,17 @@ export function Nav() {
         <div className="flex items-center gap-4">
           {!isAuthPage && (
             <>
+              <Link
+                href="/chat"
+                className="relative rounded-md px-3 py-1.5 text-sm font-medium text-stone-600 hover:bg-stone-100"
+              >
+                Chat
+                {unreadChats > 0 && (
+                  <span className="ml-1.5 inline-flex min-w-[1.25rem] justify-center rounded-full bg-amber-500 px-1.5 py-0.5 text-xs font-medium text-white">
+                    {unreadChats > 99 ? "99+" : unreadChats}
+                  </span>
+                )}
+              </Link>
               {!helperMode && (
                 <>
                   <Link

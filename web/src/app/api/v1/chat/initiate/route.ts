@@ -24,6 +24,50 @@ export async function POST(req: NextRequest) {
     }
 
     const supabase = createSupabaseAdmin();
+
+    const addPendingHelpersToChat = async (chatId: string) => {
+      const { data: pending } = await supabase
+        .from("product_accepted_helpers")
+        .select("helper_id")
+        .eq("product_id", product_id)
+        .eq("buyer_id", buyer_id);
+      for (const row of pending ?? []) {
+        const { data: hp } = await supabase
+          .from("helper_profiles")
+          .select("user_id")
+          .eq("id", row.helper_id)
+          .single();
+        if (hp?.user_id) {
+          await supabase.from("chat_participants").upsert(
+            { chat_id: chatId, user_id: hp.user_id, role: "helper" },
+            { onConflict: "chat_id,user_id" }
+          );
+        }
+      }
+      await supabase.from("product_accepted_helpers").delete().eq("product_id", product_id).eq("buyer_id", buyer_id);
+    };
+
+    // Idempotent: return existing chat if buyer+seller already have one for this product
+    const { data: existingChats } = await supabase
+      .from("chats")
+      .select("id")
+      .eq("product_id", product_id);
+    for (const c of existingChats ?? []) {
+      const { data: participants } = await supabase
+        .from("chat_participants")
+        .select("user_id")
+        .eq("chat_id", c.id);
+      const userIds = new Set((participants ?? []).map((p) => p.user_id));
+      if (userIds.has(buyer_id) && userIds.has(seller_id)) {
+        await addPendingHelpersToChat(c.id);
+        const { data: parts } = await supabase.from("chat_participants").select("user_id").eq("chat_id", c.id);
+        return NextResponse.json({
+          chat_id: c.id,
+          participants: parts?.map((p) => p.user_id) ?? [buyer_id, seller_id],
+        });
+      }
+    }
+
     const { data: chat, error } = await supabase
       .from("chats")
       .insert({ product_id })
@@ -35,6 +79,7 @@ export async function POST(req: NextRequest) {
       { chat_id: chat.id, user_id: buyer_id, role: "buyer" },
       { chat_id: chat.id, user_id: seller_id, role: "seller" },
     ]);
+    await addPendingHelpersToChat(chat.id);
 
     const { data: participants } = await supabase
       .from("chat_participants")

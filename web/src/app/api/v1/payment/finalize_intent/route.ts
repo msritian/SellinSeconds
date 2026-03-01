@@ -36,7 +36,9 @@ export async function POST(req: NextRequest) {
       const updates: { buyer_confirmed?: boolean; seller_confirmed?: boolean; hold_triggered?: boolean } = {};
       if (role === "buyer") updates.buyer_confirmed = true;
       if (role === "seller") updates.seller_confirmed = true;
-      if (row.buyer_confirmed && row.seller_confirmed) {
+      const bothConfirmed =
+        (row.buyer_confirmed || updates.buyer_confirmed) && (row.seller_confirmed || updates.seller_confirmed);
+      if (bothConfirmed) {
         updates.hold_triggered = true;
         await supabase.from("payment_holds").insert({
           buyer_id: row.buyer_id,
@@ -45,6 +47,7 @@ export async function POST(req: NextRequest) {
           amount: row.amount,
           status: "held",
         });
+        await supabase.from("products").update({ status: "sold" }).eq("id", product_id);
       }
       const { data: updated } = await supabase
         .from("finalize_intents")
@@ -91,6 +94,7 @@ export async function POST(req: NextRequest) {
           amount,
           status: "held",
         });
+        await supabase.from("products").update({ status: "sold" }).eq("id", product_id);
       }
     }
 

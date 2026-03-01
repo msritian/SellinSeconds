@@ -34,11 +34,19 @@ export default function HelperPage() {
   const [saving, setSaving] = useState(false);
   const [loadingLeads, setLoadingLeads] = useState(false);
   const [locationError, setLocationError] = useState("");
+  const [profileError, setProfileError] = useState("");
 
   useEffect(() => {
     if (!user || !session?.access_token) return;
+    setProfileError("");
     apiFetch(`/helper/profile/${user.id}`, { token: session.access_token })
-      .then((r) => (r.ok ? r.json() : null))
+      .then((r) => {
+        if (r.status === 503) {
+          setProfileError("Couldn't reach the server. Make sure the backend is running (e.g. uvicorn on port 8001).");
+          return null;
+        }
+        return r.ok ? r.json() : null;
+      })
       .then((data) => {
         if (data) {
           setProfile({
@@ -57,7 +65,8 @@ export default function HelperPage() {
         } else {
           setProfile({ helper_id: "", is_new: true });
         }
-      });
+      })
+      .catch(() => setProfileError("Couldn't load profile."));
   }, [user, session?.access_token]);
 
   useEffect(() => {
@@ -125,6 +134,11 @@ export default function HelperPage() {
   return (
     <div className="mx-auto max-w-2xl px-4 py-8">
       <h1 className="text-xl font-bold text-stone-800">Helper mode</h1>
+      {profileError && (
+        <p className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800" role="alert">
+          {profileError}
+        </p>
+      )}
       <p className="mt-1 text-sm text-stone-500">
         Set your location and capacity. We&apos;ll show you nearby listings you can help deliver.
       </p>

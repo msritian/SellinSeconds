@@ -208,8 +208,9 @@ export default function ProductPage() {
               const hasAlreadyVolunteered =
                 myHelperId != null &&
                 (product.helpers?.some((h) => h.helper_id === myHelperId) ?? false);
-              const showAvailableHelpers = !isHelper || hasAlreadyVolunteered;
+              const showAvailableHelpers = true;
               const showVolunteer = isHelper && !hasAlreadyVolunteered;
+              const isBuyer = !isSeller && !helperModeOn;
               return (
                 <>
                   {showAvailableHelpers && (
@@ -225,7 +226,7 @@ export default function ProductPage() {
                               <span>
                                 {h.name} · {h.vehicle_type} · {h.proximity_km.toFixed(1)} km · ${h.quoted_fee.toFixed(2)} delivery
                               </span>
-                              {!isSeller && h.helper_id !== myHelperId && (
+                              {isBuyer && h.helper_id !== myHelperId && (
                                 <Link
                                   href={`/chat?accept_helper=1&helper_id=${h.helper_id}&product_id=${product.product_id}`}
                                   className="text-sm font-medium text-amber-600 hover:underline"
