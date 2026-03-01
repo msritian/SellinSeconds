@@ -1,6 +1,6 @@
 import { createSupabaseBrowser } from "@/lib/supabase/client";
 
-// Use Python backend when NEXT_PUBLIC_API_URL is set (e.g. http://localhost:8000); else same-origin Next.js API
+// Use Python backend when NEXT_PUBLIC_API_URL is set (e.g. http://localhost:8001 or http://localhost:8001/api/v1); else same-origin Next.js API
 function getBase(): string {
   const url = process.env.NEXT_PUBLIC_API_URL;
   if (url) return url.replace(/\/$/, "");
@@ -9,7 +9,11 @@ function getBase(): string {
 
 export function getApiUrl(path: string): string {
   const base = getBase();
-  return base ? `${base}/api/v1${path}` : `/api/v1${path}`;
+  const pathPart = path.startsWith("/") ? path : `/${path}`;
+  if (!base) return `/api/v1${pathPart}`;
+  // Avoid double /api/v1 if base already includes it
+  if (base.endsWith("/api/v1")) return `${base}${pathPart}`;
+  return `${base}/api/v1${pathPart}`;
 }
 
 export async function apiFetch(
