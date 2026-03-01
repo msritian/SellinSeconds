@@ -1,4 +1,5 @@
 import logging
+import os
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -8,6 +9,16 @@ from starlette.responses import Response
 from app.routers import user, auth, seller, products, helper, chat, payment
 
 log = logging.getLogger(__name__)
+
+# CORS: allow localhost + production frontend (set CORS_ORIGINS=https://your-frontend.run.app)
+_cors_origins = [
+    "http://localhost:3000",
+    "http://localhost:3001",
+    "http://127.0.0.1:3000",
+    "http://127.0.0.1:3001",
+]
+if os.environ.get("CORS_ORIGINS"):
+    _cors_origins.extend(o.strip() for o in os.environ["CORS_ORIGINS"].split(",") if o.strip())
 
 
 class Log4xxMiddleware(BaseHTTPMiddleware):
@@ -27,12 +38,7 @@ app = FastAPI(title="Campus Marketplace API", version="1.0")
 app.add_middleware(Log4xxMiddleware)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",
-        "http://localhost:3001",
-        "http://127.0.0.1:3000",
-        "http://127.0.0.1:3001",
-    ],
+    allow_origins=_cors_origins,
     allow_origin_regex=r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$",
     allow_credentials=True,
     allow_methods=["*"],

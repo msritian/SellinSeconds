@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, Suspense } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/app/providers";
@@ -15,7 +15,7 @@ type ChatItem = {
   unread_count: number;
 };
 
-export default function ChatListPage() {
+function ChatListContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { user, session, loading } = useAuth();
@@ -182,5 +182,17 @@ export default function ChatListPage() {
       </ul>
       )}
     </div>
+  );
+}
+
+export default function ChatListPage() {
+  return (
+    <Suspense fallback={
+      <div className="mx-auto max-w-2xl px-4 py-8">
+        <p className="text-stone-500">Loading…</p>
+      </div>
+    }>
+      <ChatListContent />
+    </Suspense>
   );
 }

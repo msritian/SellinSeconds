@@ -1,5 +1,6 @@
 from typing import Generator
 
+from fastapi import HTTPException
 from supabase import create_client, Client
 from app.config import settings
 
@@ -23,14 +24,31 @@ try:
 except Exception:
     pass
 
-supabase = create_client(
-    settings.supabase_url,
-    settings.supabase_service_role_key,
-)
+class _UnconfiguredSupabase:
+    """Proxy that raises 503 so container can start without Supabase env (e.g. Cloud Run)."""
+
+    def __getattr__(self, _name: str) -> None:
+        raise HTTPException(
+            status_code=503,
+            detail="Supabase not configured. Set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in Cloud Run.",
+        )
+
+
+# Only create client when configured (so container can start on Cloud Run before env is set)
+if settings.supabase_url and settings.supabase_service_role_key:
+    supabase: Client = create_client(
+        settings.supabase_url,
+        settings.supabase_service_role_key,
+    )
+else:
+    supabase = _UnconfiguredSupabase()  # type: ignore[assignment]
 
 
 def get_supabase() -> Generator[Client, None, None]:
-    """Per-request Supabase client to avoid connection pool contention (chat 500s)."""
+    """Per-request Supabase client to avoid connection pool contention (chat 500s).
+    Creates a new client per request and closes it after; do not close the global client."""
+    if isinstance(supabase, _UnconfiguredSupabase):
+        raise HTTPException(status_code=503, detail="Supabase not configured. Set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in Cloud Run.")
     client = create_client(
         settings.supabase_url,
         settings.supabase_service_role_key,
@@ -38,5 +56,5 @@ def get_supabase() -> Generator[Client, None, None]:
     try:
         yield client
     finally:
-        if getattr(client, "_postgrest", None) is not None:
+        if getattr(client, "postgrest", None) is not None:
             client.postgrest.aclose()

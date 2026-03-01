@@ -1,0 +1,20 @@
+# Cloud Build for frontend. Run from repo root:
+#   gcloud builds submit web --config=web/cloudbuild.yaml --substitutions=_NEXT_PUBLIC_API_URL=https://...,_IMAGE=...
+substitutions:
+  _NEXT_PUBLIC_SUPABASE_URL: ''
+  _NEXT_PUBLIC_SUPABASE_ANON_KEY: ''
+steps:
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'build'
+      - '--build-arg'
+      - 'NEXT_PUBLIC_API_URL=${_NEXT_PUBLIC_API_URL}'
+      - '--build-arg'
+      - 'NEXT_PUBLIC_SUPABASE_URL=${_NEXT_PUBLIC_SUPABASE_URL}'
+      - '--build-arg'
+      - 'NEXT_PUBLIC_SUPABASE_ANON_KEY=${_NEXT_PUBLIC_SUPABASE_ANON_KEY}'
+      - '-t'
+      - '${_IMAGE}:latest'
+      - '.'
+images:
+  - '${_IMAGE}:latest'
