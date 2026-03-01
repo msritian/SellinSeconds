@@ -89,6 +89,13 @@ def _escape_html(s: str) -> str:
     return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace('"', "&quot;")
 
 
+def _first_not_none(*values):
+    for v in values:
+        if v is not None:
+            return v
+    return None
+
+
 def render_product_cards_html(products: list[dict]) -> str:
     if not products:
         return '<div class="product-cards-empty">No matching listings found.</div>'
@@ -98,6 +105,7 @@ def render_product_cards_html(products: list[dict]) -> str:
         if p.get("media_urls"):
             m = p["media_urls"][0] if isinstance(p["media_urls"][0], dict) else {}
             thumb = m.get("thumbnail_url") or m.get("url") or ""
+        thumb = _escape_html(str(thumb))
         dist = f" · {p['distance_km']:.1f} km" if p.get("distance_km") is not None else ""
         cards.append(
             f'<div class="product-card" data-product-id="{p["product_id"]}">'
@@ -182,11 +190,11 @@ def conversational_search(query: str, match_products_fn) -> str:
                     lat, lng = loc["lat"], loc["lng"]
             elif name == "query_products":
                 result = match_products_fn(
-                    lat=args.get("lat") or lat or 43.0731,
-                    lng=args.get("lng") or lng or -89.4012,
-                    item_name=args.get("item_name") or item_name,
-                    max_price=args.get("max_price") or max_price,
-                    radius_km=args.get("radius_km") or radius_km,
+                    lat=_first_not_none(args.get("lat"), lat, 43.0731),
+                    lng=_first_not_none(args.get("lng"), lng, -89.4012),
+                    item_name=_first_not_none(args.get("item_name"), item_name),
+                    max_price=_first_not_none(args.get("max_price"), max_price),
+                    radius_km=_first_not_none(args.get("radius_km"), radius_km),
                 )
                 products = result.get("products", [])
                 tool_results.append({"type": "tool_result", "tool_use_id": bid, "content": json.dumps(result)})

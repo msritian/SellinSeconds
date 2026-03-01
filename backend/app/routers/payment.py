@@ -10,6 +10,11 @@ router = APIRouter(prefix="/payment", tags=["payment"])
 def finalize_intent(body: FinalizeIntentBody, current_user: dict = Depends(get_current_user)):
     if body.confirmed_by != current_user["id"]:
         raise HTTPException(status_code=403, detail="Forbidden")
+    if body.role not in {"buyer", "seller"}:
+        raise HTTPException(status_code=400, detail="Invalid role")
+    participant = supabase.table("chat_participants").select("role").eq("chat_id", body.chat_id).eq("user_id", current_user["id"]).single().execute()
+    if not participant.data or participant.data.get("role") != body.role:
+        raise HTTPException(status_code=403, detail="Forbidden")
     existing = supabase.table("finalize_intents").select("*").eq("chat_id", body.chat_id).eq("product_id", body.product_id).execute()
     row = existing.data[0] if existing.data else None
     if row:
@@ -18,7 +23,8 @@ def finalize_intent(body: FinalizeIntentBody, current_user: dict = Depends(get_c
             updates["buyer_confirmed"] = True
         if body.role == "seller":
             updates["seller_confirmed"] = True
-        if row.get("buyer_confirmed") and row.get("seller_confirmed"):
+        merged = {**row, **updates}
+        if merged.get("buyer_confirmed") and merged.get("seller_confirmed") and not row.get("hold_triggered"):
             updates["hold_triggered"] = True
             supabase.table("payment_holds").insert({
                 "buyer_id": row["buyer_id"],
@@ -70,9 +76,11 @@ def finalize_intent(body: FinalizeIntentBody, current_user: dict = Depends(get_c
 
 @router.post("/hold")
 def create_hold(body: PaymentHoldBody, current_user: dict = Depends(get_current_user)):
-    part = supabase.table("chat_participants").select("user_id").eq("chat_id", body.chat_id).eq("user_id", current_user["id"]).single().execute()
+    part = supabase.table("chat_participants").select("user_id, role").eq("chat_id", body.chat_id).eq("user_id", current_user["id"]).single().execute()
     if not part.data:
         raise HTTPException(status_code=403, detail="Forbidden")
+    if body.buyer_id != current_user["id"] or part.data.get("role") != "buyer":
+        raise HTTPException(status_code=403, detail="Only buyer can create hold")
     ins = supabase.table("payment_holds").insert({
         "buyer_id": body.buyer_id,
         "product_id": body.product_id,
