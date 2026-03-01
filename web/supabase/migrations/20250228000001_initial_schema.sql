@@ -90,9 +90,6 @@ CREATE TABLE IF NOT EXISTS public.chats (
 );
 
 ALTER TABLE public.chats ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Chat participants can read chat" ON public.chats FOR SELECT USING (
-  EXISTS (SELECT 1 FROM public.chat_participants WHERE chat_id = chats.id AND user_id = auth.uid())
-);
 CREATE POLICY "Authenticated can create chat" ON public.chats FOR INSERT WITH CHECK (auth.uid() IS NOT NULL);
 
 -- Chat participants (buyer, seller, helper)
@@ -110,6 +107,11 @@ CREATE POLICY "Participants can read own chats" ON public.chat_participants FOR 
 );
 CREATE POLICY "Participants can insert when in chat" ON public.chat_participants FOR INSERT WITH CHECK (auth.uid() IS NOT NULL);
 CREATE POLICY "Participants can update for their chat" ON public.chat_participants FOR UPDATE USING (auth.uid() = user_id);
+
+-- Chats SELECT policy (must come after chat_participants exists)
+CREATE POLICY "Chat participants can read chat" ON public.chats FOR SELECT USING (
+  EXISTS (SELECT 1 FROM public.chat_participants WHERE chat_id = chats.id AND user_id = auth.uid())
+);
 
 -- Messages
 CREATE TABLE IF NOT EXISTS public.messages (

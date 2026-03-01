@@ -1,3 +1,4 @@
+from typing import Optional
 from fastapi import Depends, HTTPException
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 import httpx
@@ -11,7 +12,7 @@ def is_wisc_email(email: str) -> bool:
 
 
 async def get_current_user(
-    credentials: HTTPAuthorizationCredentials | None = Depends(security),
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
 ) -> dict:
     if not credentials:
         raise HTTPException(status_code=401, detail="Unauthorized")

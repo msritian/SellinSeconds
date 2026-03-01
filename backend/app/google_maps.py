@@ -1,3 +1,4 @@
+from typing import List, Optional
 import httpx
 from app.config import settings
 
@@ -5,7 +6,7 @@ GEOCODING_URL = "https://maps.googleapis.com/maps/api/geocode/json"
 DISTANCE_MATRIX_URL = "https://maps.googleapis.com/maps/api/distancematrix/json"
 
 
-def resolve_location(location_string: str) -> dict | None:
+def resolve_location(location_string: str) -> Optional[dict]:
     key = settings.google_maps_api_key
     if not key:
         return None
@@ -31,8 +32,8 @@ def resolve_location(location_string: str) -> dict | None:
 
 def calculate_distances_km(
     origin: dict,
-    destinations: list[dict],
-) -> list[float | None]:
+    destinations: List[dict],
+) -> List[Optional[float]]:
     if not destinations:
         return []
     key = settings.google_maps_api_key

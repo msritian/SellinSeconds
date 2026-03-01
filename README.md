@@ -35,7 +35,7 @@ Edit `web/.env` and set:
 
 - `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`
 - `GOOGLE_MAPS_API_KEY` (enable Geocoding API + Distance Matrix API in Google Cloud)
-- `OPENAI_API_KEY` (for listing extraction and buyer search)
+- In `backend/.env`: `ANTHROPIC_API_KEY` (for listing extraction and buyer search)
 
 ### 4. Install and run
 
@@ -66,7 +66,7 @@ Open [http://localhost:3000](http://localhost:3000). Register with an **@wisc.ed
 - **Backend**: **Python (FastAPI)** in `backend/` – same API spec at `/api/v1`
 - **Supabase**: Auth (@wisc.edu), Postgres, Storage (listings)
 - **Google Maps**: Geocoding, Distance Matrix (proximity)
-- **OpenAI**: Listing extraction, conversational buyer search
+- **Anthropic (Claude)**: Listing extraction, conversational buyer search
 
 ### Using the Python backend
 
@@ -74,11 +74,11 @@ Open [http://localhost:3000](http://localhost:3000). Register with an **@wisc.ed
    ```bash
    python -m venv .venv && source .venv/bin/activate
    pip install -r requirements.txt
-   uvicorn main:app --reload --port 8000
+   uvicorn main:app --reload --port 8001
    ```
 2. In `web/.env` set:
    ```env
-   NEXT_PUBLIC_API_URL=http://localhost:8000
+   NEXT_PUBLIC_API_URL=http://localhost:8001
    ```
 3. Run the frontend (`cd web && npm run dev`). All API requests go to the Python backend.
 

@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from app.auth import get_current_user
 from app.supabase_client import supabase
@@ -55,7 +56,7 @@ def get_helper_profile(user_id: str, current_user: dict = Depends(get_current_us
 
 @router.get("/leads")
 def get_leads(
-    helper_id: str | None = Query(None),
+    helper_id: Optional[str] = Query(None),
     radius_km: float = Query(5.0),
     current_user: dict = Depends(get_current_user),
 ):

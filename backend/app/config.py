@@ -5,7 +5,7 @@ class Settings(BaseSettings):
     supabase_url: str
     supabase_service_role_key: str
     google_maps_api_key: str = ""
-    openai_api_key: str = ""
+    anthropic_api_key: str = ""
     app_url: str = "http://localhost:3000"
 
     class Config:

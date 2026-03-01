@@ -1,19 +1,20 @@
 import json
 import re
-from openai import OpenAI
+from typing import Optional, List
+from anthropic import Anthropic
 from app.config import settings
 
-_openai: OpenAI | None = None
+_client: Optional[Anthropic] = None
 
 
-def _client() -> OpenAI | None:
-    global _openai
-    if _openai is None and settings.openai_api_key:
-        _openai = OpenAI(api_key=settings.openai_api_key)
-    return _openai
+def _get_client() -> Optional[Anthropic]:
+    global _client
+    if _client is None and settings.anthropic_api_key:
+        _client = Anthropic(api_key=settings.anthropic_api_key)
+    return _client
 
 
-def extract_listing_from_text(description: str, default_location: dict | None = None) -> dict:
+def extract_listing_from_text(description: str, default_location: Optional[dict] = None) -> dict:
     loc = default_location or {"lat": 0, "lng": 0, "label": "Not specified"}
     loc_str = (
         f"Default location: {loc.get('label')} (lat: {loc.get('lat')}, lng: {loc.get('lng')}). "
@@ -21,25 +22,30 @@ def extract_listing_from_text(description: str, default_location: dict | None = 
         if default_location
         else "Extract location from the text if mentioned."
     )
-    client = _client()
+    client = _get_client()
     if not client:
         return _fallback_extraction(description, default_location)
     try:
-        resp = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[
-                {
-                    "role": "system",
-                    "content": f"You are a marketplace listing parser. Extract: item_name, description, price (number), location. {loc_str} "
-                    "Respond with JSON only: item_name, description, price, location (object with lat, lng, label).",
-                },
-                {"role": "user", "content": description},
-            ],
-            response_format={"type": "json_object"},
+        resp = client.messages.create(
+            model="claude-3-5-sonnet-20241022",
+            max_tokens=1024,
+            system=f"You are a marketplace listing parser. Extract: item_name, description, price (number), location. {loc_str} "
+            "Respond with valid JSON only, no markdown or extra text. Keys: item_name, description, price, location (object with lat, lng, label).",
+            messages=[{"role": "user", "content": description}],
         )
-        raw = resp.choices[0].message.content if resp.choices else None
+        raw = None
+        for block in getattr(resp, "content", []):
+            if getattr(block, "type", None) == "text":
+                raw = getattr(block, "text", None)
+                break
         if not raw:
             return _fallback_extraction(description, default_location)
+        # Strip markdown code block if present
+        raw = raw.strip()
+        if raw.startswith("```"):
+            raw = raw.split("\n", 1)[-1] if "\n" in raw else raw[3:]
+        if raw.endswith("```"):
+            raw = raw.rsplit("```", 1)[0].strip()
         parsed = json.loads(raw)
         loc_out = parsed.get("location") or loc
         return {
@@ -57,7 +63,7 @@ def extract_listing_from_text(description: str, default_location: dict | None = 
         return _fallback_extraction(description, default_location)
 
 
-def _fallback_extraction(description: str, default_location: dict | None) -> dict:
+def _fallback_extraction(description: str, default_location: Optional[dict]) -> dict:
     loc = default_location or {"lat": 0, "lng": 0, "label": "Not specified"}
     m = re.search(r"\$?\s*(\d+(?:\.\d{2})?)", description)
     return {
@@ -103,8 +109,8 @@ def render_product_cards_html(products: list[dict]) -> str:
 
 
 def conversational_search(query: str, match_products_fn) -> str:
-    """Use LLM tools to resolve location and call match_products_fn(lat, lng, item_name, max_price, radius_km). Return HTML."""
-    client = _client()
+    """Use Claude with tools to resolve location and call match_products_fn. Return HTML."""
+    client = _get_client()
     if not client:
         from app.google_maps import resolve_location
         coords = resolve_location("Madison WI") or {"lat": 43.0731, "lng": -89.4012}
@@ -115,57 +121,63 @@ def conversational_search(query: str, match_products_fn) -> str:
 
     tools = [
         {
-            "type": "function",
-            "function": {
-                "name": "resolve_location",
-                "description": "Resolve place name to lat/lng",
-                "parameters": {
-                    "type": "object",
-                    "properties": {"location_string": {"type": "string"}},
-                    "required": ["location_string"],
-                },
+            "name": "resolve_location",
+            "description": "Resolve a place name or address to latitude and longitude.",
+            "input_schema": {
+                "type": "object",
+                "properties": {"location_string": {"type": "string", "description": "Place name or address"}},
+                "required": ["location_string"],
             },
         },
         {
-            "type": "function",
-            "function": {
-                "name": "query_products",
-                "description": "Search products by location and filters",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "item_name": {"type": "string"},
-                        "max_price": {"type": "number"},
-                        "lat": {"type": "number"},
-                        "lng": {"type": "number"},
-                        "radius_km": {"type": "number"},
-                    },
-                    "required": ["lat", "lng"],
+            "name": "query_products",
+            "description": "Search products by location and optional filters (item name, max price, radius in km).",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "item_name": {"type": "string"},
+                    "max_price": {"type": "number"},
+                    "lat": {"type": "number"},
+                    "lng": {"type": "number"},
+                    "radius_km": {"type": "number"},
                 },
+                "required": ["lat", "lng"],
             },
         },
     ]
 
-    messages = [
-        {"role": "system", "content": "You help buyers find listings. Use resolve_location for place names, then query_products with lat/lng and any item name or max price from the query."},
+    messages: List[dict] = [
         {"role": "user", "content": query},
     ]
 
     lat, lng, item_name, max_price, radius_km = None, None, None, None, 5.0
-    products = []
+    products: List[dict] = []
 
     for _ in range(5):
-        resp = client.chat.completions.create(model="gpt-4o-mini", messages=messages, tools=tools, tool_choice="auto")
-        msg = resp.choices[0].message if resp.choices else None
-        if not msg or not getattr(msg, "tool_calls", None):
+        resp = client.messages.create(
+            model="claude-3-5-sonnet-20241022",
+            max_tokens=1024,
+            tools=tools,
+            messages=messages,
+        )
+        content = getattr(resp, "content", [])
+        tool_uses = [b for b in content if getattr(b, "type", None) == "tool_use"]
+        if not tool_uses:
             break
-        messages.append(msg)
-        for tc in msg.tool_calls:
-            name = tc.function.name
-            args = json.loads(tc.function.arguments or "{}")
+
+        # Append assistant message (with tool_use blocks)
+        assistant_content = [{"type": b.type, "id": b.id, "name": b.name, "input": b.input} for b in tool_uses]
+        messages.append({"role": "assistant", "content": assistant_content})
+
+        # Build tool results and append as user message
+        tool_results = []
+        for b in tool_uses:
+            name = getattr(b, "name", "")
+            bid = getattr(b, "id", "")
+            args = getattr(b, "input", {}) or {}
             if name == "resolve_location":
                 loc = resolve_location(args.get("location_string", "Madison WI"))
-                content = json.dumps({"lat": loc["lat"], "lng": loc["lng"]}) if loc else "null"
+                tool_results.append({"type": "tool_result", "tool_use_id": bid, "content": json.dumps({"lat": loc["lat"], "lng": loc["lng"]}) if loc else "null"})
                 if loc:
                     lat, lng = loc["lat"], loc["lng"]
             elif name == "query_products":
@@ -177,8 +189,9 @@ def conversational_search(query: str, match_products_fn) -> str:
                     radius_km=args.get("radius_km") or radius_km,
                 )
                 products = result.get("products", [])
-                content = json.dumps(result)
+                tool_results.append({"type": "tool_result", "tool_use_id": bid, "content": json.dumps(result)})
             else:
-                content = "{}"
-            messages.append({"role": "tool", "tool_call_id": tc.id, "content": content})
+                tool_results.append({"type": "tool_result", "tool_use_id": bid, "content": "{}"})
+        messages.append({"role": "user", "content": tool_results})
+
     return render_product_cards_html(products)

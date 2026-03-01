@@ -1,3 +1,4 @@
+from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from app.auth import get_current_user
 from app.supabase_client import supabase
@@ -58,8 +59,8 @@ def get_product(product_id: str):
 def get_match_products(
     lat: float = Query(...),
     lng: float = Query(...),
-    item_name: str | None = Query(None),
-    max_price: float | None = Query(None),
+    item_name: Optional[str] = Query(None),
+    max_price: Optional[float] = Query(None),
     radius_km: float = Query(5.0),
     status: str = Query("available"),
 ):
@@ -68,7 +69,7 @@ def get_match_products(
 
 @router.get("/posts")
 def get_posts(query: str = Query(...), current_user: dict = Depends(get_current_user)):
-    def match_fn(lat: float, lng: float, item_name: str | None = None, max_price: float | None = None, radius_km: float = 5.0):
+    def match_fn(lat: float, lng: float, item_name: Optional[str] = None, max_price: Optional[float] = None, radius_km: float = 5.0):
         return match_products(lat=lat, lng=lng, item_name=item_name, max_price=max_price, radius_km=radius_km)
     html = conversational_search(query, match_fn)
     from fastapi.responses import HTMLResponse

@@ -18,21 +18,21 @@ FastAPI backend implementing the Campus Marketplace API spec at `/api/v1`.
    - `SUPABASE_URL` – Supabase project URL
    - `SUPABASE_SERVICE_ROLE_KEY` – Service role key (for auth admin and DB)
    - `GOOGLE_MAPS_API_KEY` – For Geocoding and Distance Matrix
-   - `OPENAI_API_KEY` – For listing extraction and conversational search
+   - `ANTHROPIC_API_KEY` – For listing extraction and conversational search (Claude)
    - `APP_URL` – Optional; used when calling back to app (e.g. for match_products from posts)
 
 4. **Run the server:**
    ```bash
-   uvicorn main:app --reload --port 8000
-   ```
-   API: http://localhost:8000  
-   Docs: http://localhost:8000/docs
+uvicorn main:app --reload --port 8001
+```
+   API: http://localhost:8001  
+   Docs: http://localhost:8001/docs
 
 ## Frontend
 
 Point the Next.js app to this backend by setting in `web/.env`:
 ```env
-NEXT_PUBLIC_API_URL=http://localhost:8000
+NEXT_PUBLIC_API_URL=http://localhost:8001
 ```
 Then run the frontend (`cd web && npm run dev`). All API calls will go to the Python backend.
 

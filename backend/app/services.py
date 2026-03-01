@@ -1,4 +1,5 @@
 """Internal services used by routers (e.g. match_products logic)."""
+from typing import Optional
 from app.supabase_client import supabase
 from app.google_maps import calculate_distances_km
 
@@ -6,8 +7,8 @@ from app.google_maps import calculate_distances_km
 def match_products(
     lat: float,
     lng: float,
-    item_name: str | None = None,
-    max_price: float | None = None,
+    item_name: Optional[str] = None,
+    max_price: Optional[float] = None,
     radius_km: float = 5.0,
     status: str = "available",
 ) -> dict:

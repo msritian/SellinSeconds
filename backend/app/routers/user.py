@@ -1,9 +1,11 @@
+import logging
 from fastapi import APIRouter, HTTPException
 from app.schemas import RegisterBody
 from app.auth import is_wisc_email
 from app.supabase_client import supabase
 
 router = APIRouter(prefix="/user", tags=["user"])
+log = logging.getLogger(__name__)
 
 
 @router.post("/register")
@@ -28,16 +30,31 @@ def register(body: RegisterBody):
         })
     except Exception as e:
         msg = str(e).lower()
+        log.warning("register create_user error: %s", e)
         if "already" in msg or "registered" in msg:
             raise HTTPException(status_code=400, detail="Email already registered")
         raise HTTPException(status_code=400, detail=str(e))
 
-    user_obj = getattr(auth_resp, "user", None) or (auth_resp[0] if isinstance(auth_resp, (list, tuple)) else None)
+    # Handle UserResponse: can be .user (Pydantic) or dict with "user" or top-level "id"
+    user_obj = None
+    if hasattr(auth_resp, "user") and auth_resp.user is not None:
+        user_obj = auth_resp.user
+    elif isinstance(auth_resp, dict):
+        user_obj = auth_resp.get("user") or auth_resp
     if not user_obj:
-        raise HTTPException(status_code=500, detail="Failed to create user")
-    user_id = getattr(user_obj, "id", None) or user_obj.get("id") if isinstance(user_obj, dict) else None
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to create user: unexpected auth response (no user)",
+        )
+    user_id = getattr(user_obj, "id", None) if not isinstance(user_obj, dict) else user_obj.get("id")
     if not user_id:
-        raise HTTPException(status_code=500, detail="Failed to create user")
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to create user: no user id in response",
+        )
+    user_id = str(user_id)
+    created_at = getattr(user_obj, "created_at", None) if not isinstance(user_obj, dict) else user_obj.get("created_at")
+
     try:
         supabase.table("users").insert({
             "id": user_id,
@@ -47,14 +64,14 @@ def register(body: RegisterBody):
         }).execute()
     except Exception as e:
         try:
-            supabase.auth.admin.delete_user(str(user_id))
+            supabase.auth.admin.delete_user(user_id)
         except Exception:
             pass
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Profile creation failed: " + str(e))
 
     return {
         "user_id": user_id,
         "name": body.name.strip(),
         "email": body.email.strip().lower(),
-        "created_at": getattr(user_obj, "created_at", None),
+        "created_at": created_at,
     }
