@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/app/providers";
 import { LoadingSpinner } from "@/app/components/LoadingSpinner";
+import { PaymentGatewayFlow, type PaymentHoldInfo } from "@/app/components/PaymentGatewayFlow";
 import { apiFetch } from "@/lib/api";
 import { useChatWebSocket, type Message } from "@/hooks/useChatWebSocket";
 
@@ -25,6 +26,8 @@ export default function ChatPage() {
     status: string;
     hold_triggered: boolean;
   } | null>(null);
+  const [paymentHold, setPaymentHold] = useState<PaymentHoldInfo | null>(null);
+  const [releasing, setReleasing] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -38,8 +41,16 @@ export default function ChatPage() {
   const handleFinalizeUpdate = useCallback(
     (state: { buyer_confirmed: boolean; seller_confirmed: boolean; hold_triggered: boolean; status: string }) => {
       setFinalizeState(state);
+      if (state.hold_triggered && session?.access_token) {
+        apiFetch(`/chat/${chatId}`, { token: session.access_token })
+          .then((r) => r.json())
+          .then((d) => {
+            if (d.payment_hold) setPaymentHold(d.payment_hold);
+          })
+          .catch(() => {});
+      }
     },
-    []
+    [chatId, session?.access_token]
   );
 
   const { connected, sendMessage: wsSendMessage, sendFinalizeUpdate } = useChatWebSocket({
@@ -69,6 +80,7 @@ export default function ChatPage() {
           if (d.product) setProduct(d.product);
           if (d.my_role) setMyRole(d.my_role);
           if (d.finalize_state) setFinalizeState(d.finalize_state);
+          if (d.payment_hold) setPaymentHold(d.payment_hold);
           if (Array.isArray(d.participants)) setParticipants(d.participants);
         }),
       apiFetch(`/chat/${chatId}/messages`, { token: session.access_token })
@@ -142,6 +154,32 @@ export default function ChatPage() {
       };
       setFinalizeState(state);
       sendFinalizeUpdate(state);
+      if (data.hold_triggered && session?.access_token) {
+        apiFetch(`/chat/${chatId}`, { token: session.access_token })
+          .then((r) => r.json())
+          .then((d) => {
+            if (d.payment_hold) setPaymentHold(d.payment_hold);
+          })
+          .catch(() => {});
+      }
+    }
+  };
+
+  const handleReleasePayment = async () => {
+    if (!paymentHold || paymentHold.status !== "held" || !session?.access_token || !user) return;
+    setReleasing(true);
+    try {
+      const res = await apiFetch("/payment/release", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ hold_id: paymentHold.hold_id, confirmed_by: user.id }),
+        token: session.access_token,
+      });
+      if (res.ok) {
+        setPaymentHold((prev) => (prev ? { ...prev, status: "released" as const } : null));
+      }
+    } finally {
+      setReleasing(false);
     }
   };
 
@@ -150,7 +188,7 @@ export default function ChatPage() {
 
   return (
     <div className="mx-auto flex max-w-2xl flex-col px-4 py-6">
-      <Link href="/" className="text-sm text-amber-600 hover:underline">
+      <Link href="/chat" className="text-sm text-amber-600 hover:underline">
         ← Back
       </Link>
 
@@ -179,14 +217,51 @@ export default function ChatPage() {
           </div>
         )}
 
-        {finalizeState && (
+        {/* Deal & payment: show steps when user is buyer or seller */}
+        {product && (myRole === "buyer" || myRole === "seller") && (
           <div className="border-b border-amber-200 bg-amber-50 px-4 py-3 text-sm">
-            <p>
-              Buyer confirmed: {finalizeState.buyer_confirmed ? "Yes" : "No"} · Seller confirmed:{" "}
-              {finalizeState.seller_confirmed ? "Yes" : "No"}
-            </p>
-            {finalizeState.hold_triggered && (
-              <p className="mt-1 font-medium text-amber-800">Payment hold active. Complete delivery to release.</p>
+            <p className="font-medium text-amber-900">Deal &amp; payment</p>
+            {!finalizeState ? (
+              <p className="mt-1 text-amber-800">
+                Step 1: You and the other party each click <strong>Finalize deal</strong> below to confirm. Step 2: Once
+                both have confirmed, a payment hold appears and the <strong>buyer</strong> can release payment through
+                the gateway.
+              </p>
+            ) : (
+              <>
+                <p className="mt-1 text-amber-800">
+                  Buyer confirmed: {finalizeState.buyer_confirmed ? "Yes" : "No"} · Seller confirmed:{" "}
+                  {finalizeState.seller_confirmed ? "Yes" : "No"}
+                </p>
+                {!finalizeState.hold_triggered && (
+                  <p className="mt-1 text-amber-800">
+                    {myRole === "buyer"
+                      ? finalizeState.buyer_confirmed
+                        ? "Waiting for seller to confirm. Then you can release payment."
+                        : "Click Finalize deal (buyer) below."
+                      : finalizeState.seller_confirmed
+                        ? "Waiting for buyer to confirm. Then they can release payment."
+                        : "Click Finalize deal (seller) below."}
+                  </p>
+                )}
+              </>
+            )}
+            {finalizeState?.hold_triggered && paymentHold && (
+              <div className="mt-3">
+                <PaymentGatewayFlow
+                  paymentHold={paymentHold}
+                  participantNames={{
+                    seller: participants.find((p) => p.role === "seller")?.name,
+                    helper: participants.find((p) => p.role === "helper")?.name,
+                  }}
+                  isBuyer={myRole === "buyer"}
+                  onRelease={handleReleasePayment}
+                  releasing={releasing}
+                />
+              </div>
+            )}
+            {finalizeState?.hold_triggered && !paymentHold && (
+              <p className="mt-2 font-medium text-amber-800">Payment hold active. Loading payment details…</p>
             )}
           </div>
         )}

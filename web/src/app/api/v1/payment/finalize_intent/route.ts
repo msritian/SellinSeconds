@@ -40,11 +40,19 @@ export async function POST(req: NextRequest) {
         (row.buyer_confirmed || updates.buyer_confirmed) && (row.seller_confirmed || updates.seller_confirmed);
       if (bothConfirmed) {
         updates.hold_triggered = true;
+        const { data: ph } = await supabase
+          .from("product_helpers")
+          .select("quoted_fee")
+          .eq("product_id", product_id)
+          .limit(1)
+          .maybeSingle();
+        const helperFee = ph ? Number(ph.quoted_fee) : 0;
+        const totalAmount = Number(row.amount) + helperFee;
         await supabase.from("payment_holds").insert({
           buyer_id: row.buyer_id,
           product_id,
           chat_id,
-          amount: row.amount,
+          amount: totalAmount,
           status: "held",
         });
         await supabase.from("products").update({ status: "sold" }).eq("id", product_id);
@@ -87,11 +95,19 @@ export async function POST(req: NextRequest) {
       if (error) return NextResponse.json({ error: error.message }, { status: 500 });
       row = inserted;
       if (holdTriggered) {
+        const { data: ph } = await supabase
+          .from("product_helpers")
+          .select("quoted_fee")
+          .eq("product_id", product_id)
+          .limit(1)
+          .maybeSingle();
+        const helperFee = ph ? Number(ph.quoted_fee) : 0;
+        const totalAmount = amount + helperFee;
         await supabase.from("payment_holds").insert({
           buyer_id: buyer,
           product_id,
           chat_id,
-          amount,
+          amount: totalAmount,
           status: "held",
         });
         await supabase.from("products").update({ status: "sold" }).eq("id", product_id);

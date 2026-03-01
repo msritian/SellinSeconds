@@ -67,7 +67,13 @@ export function Nav() {
     return (
       <header className="border-b border-stone-200 bg-white px-4 py-3">
         <div className="mx-auto flex max-w-6xl items-center justify-between">
-          <Link href="/" className="font-semibold text-stone-800">
+          <Link href="/" className="flex items-center gap-2 font-semibold text-stone-800">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/logo/uw-crest-full-color-print.eps"
+              alt=""
+              className="h-8 w-auto object-contain"
+            />
             SellinSeconds
           </Link>
           <LoadingSpinner fullPage={false} label={false} className="py-0" />
@@ -80,7 +86,13 @@ export function Nav() {
     return (
       <header className="border-b border-stone-200 bg-white px-4 py-3">
         <div className="mx-auto flex max-w-6xl items-center justify-between">
-          <Link href="/" className="font-semibold text-stone-800">
+          <Link href="/" className="flex items-center gap-2 font-semibold text-stone-800">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/logo/uw-crest-full-color-print.eps"
+              alt=""
+              className="h-8 w-auto object-contain"
+            />
             SellinSeconds
           </Link>
           <div className="flex items-center gap-3">
@@ -107,8 +119,14 @@ export function Nav() {
       <div className="mx-auto flex max-w-6xl items-center justify-between gap-4">
         <Link
           href={helperMode ? "/helper" : "/"}
-          className="shrink-0 font-semibold text-stone-800"
+          className="flex shrink-0 items-center gap-2 font-semibold text-stone-800"
         >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/logo/uw-crest-full-color-print.png"
+            alt=""
+            className="h-8 w-auto object-contain"
+          />
           SellinSeconds
         </Link>
         <div className="flex items-center gap-4">

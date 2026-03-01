@@ -45,6 +45,43 @@ export async function GET(
     };
   }
 
+  let payment_hold: {
+    hold_id: string;
+    amount: number;
+    seller_amount: number;
+    helper_amount: number;
+    has_helper: boolean;
+    status: "held" | "released";
+  } | null = null;
+  if (finalize_state?.hold_triggered) {
+    const { data: hold } = await supabase
+      .from("payment_holds")
+      .select("id, amount, status")
+      .eq("chat_id", chat_id)
+      .eq("product_id", chat.product_id)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (hold) {
+      const { data: ph } = await supabase
+        .from("product_helpers")
+        .select("helper_id, quoted_fee")
+        .eq("product_id", chat.product_id)
+        .limit(1)
+        .maybeSingle();
+      const helper_amount = ph ? Number(ph.quoted_fee) : 0;
+      const seller_amount = Number(hold.amount) - helper_amount;
+      payment_hold = {
+        hold_id: hold.id,
+        amount: Number(hold.amount),
+        seller_amount,
+        helper_amount,
+        has_helper: helper_amount > 0,
+        status: hold.status as "held" | "released",
+      };
+    }
+  }
+
   const { data: partsAll } = await supabase
     .from("chat_participants")
     .select("user_id, role")
@@ -67,6 +104,7 @@ export async function GET(
     my_role: participant.role,
     product: product ? { product_id: product.id, item_name: product.item_name, price: Number(product.price) } : null,
     finalize_state,
+    payment_hold,
     participants,
   });
 }
