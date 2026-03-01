@@ -26,11 +26,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session: s } }) => {
-      setSession(s ? { access_token: s.access_token } : null);
-      setUser(s?.user ?? null);
+    (async () => {
+      const { data: { session: s } } = await supabase.auth.getSession();
+      // Refresh session so we have a valid access token (avoids "Invalid token" on first API calls)
+      if (s) {
+        const { data: { session: refreshed } } = await supabase.auth.refreshSession();
+        const sessionToUse = refreshed ?? s;
+        setSession(sessionToUse ? { access_token: sessionToUse.access_token } : null);
+        setUser(sessionToUse?.user ?? null);
+      } else {
+        setSession(null);
+        setUser(null);
+      }
       setLoading(false);
-    });
+    })();
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, s) => {

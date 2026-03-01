@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/app/providers";
+import { LoadingSpinner } from "@/app/components/LoadingSpinner";
 import { getApiUrl } from "@/lib/api";
 
 type Listing = {
@@ -36,7 +37,7 @@ export default function SellerListingsPage() {
       .finally(() => setLoadingList(false));
   }, [user?.id]);
 
-  if (loading) return <div className="p-8">Loading…</div>;
+  if (loading) return <LoadingSpinner />;
   if (!user) {
     return (
       <div className="p-8">
@@ -56,7 +57,7 @@ export default function SellerListingsPage() {
       </p>
 
       {loadingList ? (
-        <p className="mt-6 text-stone-500">Loading…</p>
+        <LoadingSpinner fullPage={false} className="mt-8" />
       ) : error ? (
         <p className="mt-6 text-amber-700">{error}</p>
       ) : listings.length === 0 ? (

@@ -3,6 +3,7 @@
 import { useState, useRef } from "react";
 import Link from "next/link";
 import { useAuth } from "@/app/providers";
+import { LoadingSpinner } from "@/app/components/LoadingSpinner";
 import { apiFetch } from "@/lib/api";
 
 type DraftResponse = {
@@ -29,7 +30,7 @@ export default function ListPage() {
   const [error, setError] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  if (loading) return <div className="p-8">Loading…</div>;
+  if (loading) return <LoadingSpinner />;
   if (!user) {
     return (
       <div className="p-8">

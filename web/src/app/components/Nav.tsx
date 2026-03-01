@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "../providers";
+import { LoadingSpinner } from "./LoadingSpinner";
 import { useState, useEffect } from "react";
 import { getStoredHelperMode, setStoredHelperMode } from "@/lib/helper-mode";
 
@@ -39,7 +40,7 @@ export function Nav() {
           <Link href="/" className="font-semibold text-stone-800">
             SellinSeconds
           </Link>
-          <span className="text-sm text-stone-500">Loading…</span>
+          <LoadingSpinner fullPage={false} label={false} className="py-0" />
         </div>
       </header>
     );
