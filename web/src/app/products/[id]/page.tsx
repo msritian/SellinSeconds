@@ -96,9 +96,14 @@ export default function ProductPage() {
     return (
       <div className="p-8">
         <p className="text-red-600">{error || "Not found"}</p>
-        <Link href="/" className="mt-4 inline-block text-amber-600 hover:underline">
-          Back to search
-        </Link>
+        <div className="mt-4 flex flex-col gap-2">
+          <Link href="/" className="text-amber-600 hover:underline">
+            Back to search
+          </Link>
+          <Link href="/seller/listings" className="text-amber-600 hover:underline">
+            Back to listings
+          </Link>
+        </div>
       </div>
     );
   }
@@ -159,9 +164,14 @@ export default function ProductPage() {
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-8">
-      <Link href="/" className="text-sm text-amber-600 hover:underline">
-        ← Back to search
-      </Link>
+      <div className="flex flex-col gap-2 text-sm">
+        <Link href="/" className="text-amber-600 hover:underline">
+          ← Back to search
+        </Link>
+        <Link href="/seller/listings" className="text-amber-600 hover:underline">
+          ← Back to listings
+        </Link>
+      </div>
 
       <div className="mt-6 grid gap-8 md:grid-cols-2">
         <div className="space-y-4">

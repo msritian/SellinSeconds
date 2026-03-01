@@ -24,11 +24,14 @@ def finalize_intent(body: FinalizeIntentBody, current_user: dict = Depends(get_c
         )
         if both_confirmed:
             updates["hold_triggered"] = True
+            ph = supabase.table("product_helpers").select("quoted_fee").eq("product_id", body.product_id).limit(1).execute()
+            helper_fee = float(ph.data[0]["quoted_fee"]) if ph.data else 0
+            total_amount = float(row["amount"]) + helper_fee
             supabase.table("payment_holds").insert({
                 "buyer_id": row["buyer_id"],
                 "product_id": body.product_id,
                 "chat_id": body.chat_id,
-                "amount": row["amount"],
+                "amount": total_amount,
                 "status": "held",
             }).execute()
             supabase.table("products").update({"status": "sold"}).eq("id", body.product_id).execute()
@@ -57,11 +60,14 @@ def finalize_intent(body: FinalizeIntentBody, current_user: dict = Depends(get_c
             raise HTTPException(status_code=500, detail="Failed to create intent")
         row = ins.data[0]
         if hold_triggered:
+            ph = supabase.table("product_helpers").select("quoted_fee").eq("product_id", body.product_id).limit(1).execute()
+            helper_fee = float(ph.data[0]["quoted_fee"]) if ph.data else 0
+            total_amount = float(body.amount) + helper_fee
             supabase.table("payment_holds").insert({
                 "buyer_id": buyer,
                 "product_id": body.product_id,
                 "chat_id": body.chat_id,
-                "amount": body.amount,
+                "amount": total_amount,
                 "status": "held",
             }).execute()
             supabase.table("products").update({"status": "sold"}).eq("id", body.product_id).execute()

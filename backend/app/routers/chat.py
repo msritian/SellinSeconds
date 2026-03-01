@@ -219,6 +219,36 @@ def get_chat(
             "hold_triggered": bool(r.get("hold_triggered")),
             "status": "both_confirmed" if (r.get("buyer_confirmed") and r.get("seller_confirmed")) else "pending",
         }
+    payment_hold = None
+    if finalize_state and finalize_state.get("hold_triggered"):
+        hold_res = (
+            supabase.table("payment_holds")
+            .select("id, amount, status")
+            .eq("chat_id", chat_id)
+            .eq("product_id", chat.data["product_id"])
+            .order("created_at", desc=True)
+            .limit(1)
+            .execute()
+        )
+        if hold_res.data and len(hold_res.data) > 0:
+            hold = hold_res.data[0]
+            ph = (
+                supabase.table("product_helpers")
+                .select("helper_id, quoted_fee")
+                .eq("product_id", chat.data["product_id"])
+                .limit(1)
+                .execute()
+            )
+            helper_amount = float(ph.data[0]["quoted_fee"]) if ph.data and len(ph.data) > 0 else 0
+            seller_amount = float(hold["amount"]) - helper_amount
+            payment_hold = {
+                "hold_id": hold["id"],
+                "amount": float(hold["amount"]),
+                "seller_amount": seller_amount,
+                "helper_amount": helper_amount,
+                "has_helper": helper_amount > 0,
+                "status": hold["status"],
+            }
     parts_all = supabase.table("chat_participants").select("user_id, role").eq("chat_id", chat_id).execute()
     participant_ids = [x["user_id"] for x in (parts_all.data or [])]
     user_names = {}
@@ -232,6 +262,7 @@ def get_chat(
         "my_role": part.data["role"],
         "product": {"product_id": p["id"], "item_name": p["item_name"], "price": float(p["price"])} if p else None,
         "finalize_state": finalize_state,
+        "payment_hold": payment_hold,
         "participants": participants,
     }
 

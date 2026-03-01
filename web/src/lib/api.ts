@@ -26,7 +26,9 @@ export function getChatWebSocketUrl(chatId: string, token: string): string {
     return `${protocol}//${host}${path}`;
   }
   const wsProtocol = base.startsWith("https") ? "wss" : "ws";
-  const host = base.replace(/^https?:\/\//, "");
+  // Always parse as URL to get origin only (host:port). Base may be "http://localhost:8001/api/v1" or "localhost:8001/api/v1".
+  const normalizedBase = base.includes("://") ? base : `http://${base}`;
+  const host = new URL(normalizedBase).host; // "localhost:8001" without path
   return `${wsProtocol}://${host}${path}`;
 }
 

@@ -80,7 +80,7 @@ export default function HelperPage() {
         setLeads(d.leads ?? []);
       })
       .finally(() => setLoadingLeads(false));
-  }, [profile?.helper_id, profile?.location?.lat, profile?.location?.lng, session?.access_token]);
+  }, [profile?.helper_id, profile?.location, session?.access_token]);
 
   const saveProfile = async () => {
     if (!session?.access_token || !user) return;
